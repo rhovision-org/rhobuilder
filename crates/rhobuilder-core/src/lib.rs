@@ -20,6 +20,17 @@ pub fn schema(name: &str) -> String {
     format!("rhobuilder.{name}/v1")
 }
 
+/// Lowercase hex for a hash digest. Kept here so the sha2 major-version change does not
+/// leak into formatting code.
+pub fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

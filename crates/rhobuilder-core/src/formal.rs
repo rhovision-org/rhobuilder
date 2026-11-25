@@ -94,7 +94,7 @@ pub fn tree_hash(files: &BTreeMap<String, Vec<u8>>) -> String {
         hasher.update(bytes);
         hasher.update([0u8]);
     }
-    format!("{:x}", hasher.finalize())
+    crate::hex(&hasher.finalize())
 }
 
 pub fn vendored_manifest(files: &BTreeMap<String, Vec<u8>>) -> Value {
