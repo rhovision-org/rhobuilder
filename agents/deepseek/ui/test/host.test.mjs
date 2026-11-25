@@ -97,3 +97,14 @@ test('unknown API paths are 404 after admission', async () => {
   const result = await call(api, '/rhobuilder/api/nope')
   assert.equal(result.status, 404)
 })
+
+test('scaffold-plan refuses traversal before invoking the CLI', async () => {
+  const { routes } = harness({ admit: () => ({ peer: {} }) })
+  const api = routes.find((route) => route.path === '/rhobuilder/api')
+  const result = await call(
+    api,
+    '/rhobuilder/api/scaffold-plan?design=../escape.json&template=headless',
+  )
+  assert.equal(result.status, 400)
+})
+

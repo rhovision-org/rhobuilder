@@ -44,7 +44,7 @@ traceability row to the UI or CLI change that addresses it.
 |---|---|---|
 | P2-1 | Generic scaffolds look finished; `owed` arms are not visible. | **Surfaced** in the dashboard status; per-project badges are deferred |
 | P2-2 | Evidence JSON contains `not_run`/`candidate` machine states that non-technical users misread. | **Surfaced**: the dashboard exposes evidence and uses plain status labels; a dedicated evidence renderer is deferred |
-| P2-3 | Scaffold `confirm:true` is model-internal, not a user approval. | **Surfaced**: the build skill requires explicit user confirmation; a UI Apply form is deferred |
+| P2-3 | Scaffold `confirm:true` is model-internal, not a user approval. | **Surfaced**: the dashboard shows a read-only plan/file count and the build skill requires explicit confirmation; applying remains a separate chat action |
 | P2-4 | Skill jargon has no user-facing glossary. | **Fixed**: landing hero + glossary below |
 
 ## Task trace: idea → repo → devnet → testnet

@@ -244,6 +244,36 @@ async function apiHandler(req, res, ctx, config) {
       sendJson(res, 200, { schema: 'rhobuilder.ui-examples/v1', examples: examples() })
       return
     }
+    if (path === '/scaffold-plan') {
+      const design = target.searchParams.get('design') || ''
+      const template = target.searchParams.get('template') || 'headless'
+      if (!/^[a-z0-9-]+\.json$/.test(design) || !['full', 'headless'].includes(template)) {
+        sendJson(res, 400, { ok: false, error: 'design must be a fixture name and template full|headless' })
+        return
+      }
+      const plan = await runBridge(
+        'scaffold',
+        {
+          target: join(ROOT, '.rhobuilder-plan-preview'),
+          design: join(ROOT, 'fixtures', 'designs', design),
+          template,
+          confirm: false,
+        },
+        bridgeConfig(config),
+      )
+      const files = Array.isArray(plan.plan?.files) ? plan.plan.files.length : 0
+      sendJson(res, 200, {
+        schema: 'rhobuilder.ui-scaffold-plan/v1',
+        ok: true,
+        design,
+        template,
+        count: files,
+        files: plan.plan?.files ?? [],
+        writes: false,
+        note: 'Plan only; no files written. Apply is a separate, explicitly confirmed chat action.',
+      })
+      return
+    }
     if (path === '/evidence') {
       sendJson(res, 200, { schema: 'rhobuilder.ui-evidence/v1', evidence: summary().evidence })
       return

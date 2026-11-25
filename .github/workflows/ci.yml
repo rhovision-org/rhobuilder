@@ -88,6 +88,19 @@ jobs:
           make -C /tmp/rhobuilder-ledger check
           ./target/debug/rhobuilder --json formal check --project /tmp/rhobuilder-ledger
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: cargo build --release -p rhobuilder-cli
+      - run: python3 tools/package_release.py --check --build --self-test --json
+
   docs:
     runs-on: ubuntu-latest
     steps:

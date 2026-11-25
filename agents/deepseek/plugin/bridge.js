@@ -124,11 +124,14 @@ export function parseBridgeStdout(stdout) {
     throw new Error(`rhobuilder bridge wrote non-JSON: ${text.slice(-500)}`)
   }
   if (document && (document.kind === 'error' || document.ok === false)) {
-    const error = new Error(
-      `${document.error?.type ?? 'Error'}: ${document.error?.message ?? 'unknown refusal'}`,
-    )
-    error.type = document.error?.type
+    const type = document.error?.type ?? 'Error'
+    const detail = document.error?.message ?? 'unknown refusal'
+    const hint = document.error?.hint
+    const error = new Error(`${type}: ${detail}${hint ? ` — ${hint}` : ''}`)
+    error.type = type
+    error.status = document.error?.status
     error.field = document.error?.field
+    error.hint = hint
     throw error
   }
   return document

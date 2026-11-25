@@ -202,16 +202,19 @@ test('plan maps to the read-only deploy plan', () => {
   ])
 })
 
-test('an error envelope becomes a typed error', () => {
+test('an error envelope becomes a typed error with its hint', () => {
   assert.throws(
     () =>
       parseBridgeStdout(
-        '{"kind":"error","error":{"type":"IdentityMismatch","field":"network","message":"wrong genesis"}}',
+        '{"kind":"error","error":{"type":"IdentityMismatch","status":"identity_mismatch","field":"network","message":"wrong genesis","hint":"Re-probe before planning."}}',
       ),
     (error) =>
       error.type === 'IdentityMismatch' &&
+      error.status === 'identity_mismatch' &&
       error.field === 'network' &&
-      /wrong genesis/.test(error.message),
+      error.hint === 'Re-probe before planning.' &&
+      /wrong genesis/.test(error.message) &&
+      /Re-probe before planning/.test(error.message),
   )
 })
 

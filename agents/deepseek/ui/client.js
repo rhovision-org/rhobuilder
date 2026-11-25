@@ -337,54 +337,81 @@ function copyText(text) {
   }
 }
 
+const BUTTON = {
+  marginTop: 8,
+  padding: '5px 10px',
+  borderRadius: 7,
+  border: `1px solid ${BORDER}`,
+  background: SOFT,
+  color: INK,
+  cursor: 'pointer',
+  font: '12px/1.3 system-ui, sans-serif',
+}
+
+function ExampleCard({ example }) {
+  const [plan, setPlan] = React.useState({ status: 'idle' })
+  const planScaffold = () => {
+    setPlan({ status: 'loading' })
+    fetch(
+      `/rhobuilder/api/scaffold-plan?design=${encodeURIComponent(example.file)}&template=headless`,
+      { credentials: 'same-origin' },
+    )
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        return response.json()
+      })
+      .then((value) => setPlan({ status: 'ok', count: value.count }))
+      .catch((error) => setPlan({ status: 'error', message: String(error?.message ?? error) }))
+  }
+  return h(
+    'div',
+    { style: { borderTop: `1px solid ${BORDER}`, paddingTop: 9 } },
+    h('strong', null, example.name),
+    h('p', { style: { ...MUTED_TEXT, margin: '3px 0 6px' } }, example.summary),
+    h(
+      'div',
+      { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+      (example.tags ?? []).map((tag) =>
+        h(Badge, { key: tag.id, tone: tag.tag === 'new' ? 'warn' : 'neutral' }, `${tag.id}: ${tag.tag}`),
+      ),
+    ),
+    h(
+      'div',
+      { style: { display: 'flex', gap: 7, flexWrap: 'wrap' } },
+      h('button', { type: 'button', style: BUTTON, onClick: planScaffold }, 'Plan scaffold (no writes)'),
+      h(
+        'button',
+        {
+          type: 'button',
+          style: BUTTON,
+          onClick: () =>
+            copyText(
+              `Review ${example.file} with rhobuilder-dapp-design and rhobuilder-primitive-reuse. Report reuse/extend/new, then propose the scaffold plan. Do not apply without my explicit confirmation.`,
+            ),
+        },
+        'Copy review prompt',
+      ),
+    ),
+    plan.status === 'ok' &&
+      h('p', { style: { ...MUTED_TEXT, margin: '7px 0 0' } }, `Plan: ${plan.count} files; no files written.`),
+    plan.status === 'loading' && h('p', { style: MUTED_TEXT }, 'Planning…'),
+    plan.status === 'error' && h('p', { style: { color: '#b42318' } }, `Plan failed: ${plan.message}`),
+  )
+}
+
 function Examples({ examples }) {
   const rows = Array.isArray(examples.value?.examples) ? examples.value.examples : []
   return h(
     Card,
-    { title: 'Examples', subtitle: 'Start from a worked design and adapt it.' },
+    {
+      title: 'Examples',
+      subtitle: 'Plan a worked design before asking the chat to apply it.',
+    },
     rows.length === 0 && h('p', { style: MUTED_TEXT }, 'Examples are unavailable in this installation.'),
     h(
       'div',
       { style: { display: 'grid', gap: 10, marginTop: 8 } },
-      rows.map((example) =>
-        h(
-          'div',
-          {
-            key: example.file,
-            style: { borderTop: `1px solid ${BORDER}`, paddingTop: 9 },
-          },
-          h('strong', null, example.name),
-          h('p', { style: { ...MUTED_TEXT, margin: '3px 0 6px' } }, example.summary),
-          h(
-            'div',
-            { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-            (example.tags ?? []).map((tag) =>
-              h(Badge, { key: tag.id, tone: tag.tag === 'new' ? 'warn' : 'neutral' }, `${tag.id}: ${tag.tag}`),
-            ),
-          ),
-          h(
-            'button',
-            {
-              type: 'button',
-              style: {
-                marginTop: 8,
-                padding: '5px 10px',
-                borderRadius: 7,
-                border: `1px solid ${BORDER}`,
-                background: SOFT,
-                color: INK,
-                cursor: 'pointer',
-                font: '12px/1.3 system-ui, sans-serif',
-              },
-              onClick: () =>
-                copyText(
-                  `Review ${example.file} with rhobuilder-dapp-design and rhobuilder-primitive-reuse. Report reuse/extend/new, then propose the scaffold plan.`,
-                ),
-            },
-            'Copy review prompt',
-          ),
-        ),
-      ),
+      rows.map((example) => h(ExampleCard, { key: example.file, example })),
     ),
   )
 }

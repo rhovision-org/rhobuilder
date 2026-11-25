@@ -25,7 +25,9 @@ supplies the rhobuilder persona by default.
   - Readiness: required/setup/warn checks with install hints.
   - Networks: devnet local, testnet gated, mainnet refused.
   - Primitive graph summary (16 primitives, 5 edges, owner counts).
-  - Examples: bookable-service, payments-ledger, duplicate-escrow.
+  - Examples: bookable-service, payments-ledger, duplicate-escrow. “Plan scaffold
+    (no writes)” returns the file count through a read-only CLI plan; applying is a
+    separate, explicitly confirmed chat action.
   - Truthful status: P5 measured, P6 gated, generic arms `owed`.
   - CLI handoff: copyable keygen/fund/install/deploy/baseline commands.
 - Plain labels: `Ready`, `Setup required`, `Not running`, `Scaffold`, `Owed`, `Not run`,
