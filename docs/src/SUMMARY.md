@@ -8,4 +8,5 @@
 - [Lean and RhoApp](formal.md)
 - [MCP server](mcp.md)
 - [Devnet smoke](devnet.md)
+- [Public-testnet baseline](baseline.md)
 - [Registry and reuse](registry.md)

@@ -49,6 +49,11 @@ enum Command {
         #[command(subcommand)]
         command: DesignCommand,
     },
+    /// Public-testnet baseline planning (execution stays gated).
+    Baseline {
+        #[command(subcommand)]
+        command: BaselineCommand,
+    },
     /// Vendored Lean library operations.
     Formal {
         #[command(subcommand)]
@@ -99,6 +104,25 @@ enum DesignCommand {
     Report {
         #[arg(long)]
         path: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum BaselineCommand {
+    /// Read-only plan: identity probe plus adopt/deploy steps for the shared primitives.
+    Plan {
+        #[arg(long, default_value = "testnet")]
+        network: String,
+    },
+    /// Read-only identity and catalog-claim verification.
+    Verify {
+        #[arg(long, default_value = "testnet")]
+        network: String,
+    },
+    /// Live execution is deliberately refused in this build.
+    Run {
+        #[arg(long, default_value = "testnet")]
+        network: String,
     },
 }
 
@@ -169,6 +193,23 @@ async fn main() -> ExitCode {
             | DesignCommand::Validate { path }
             | DesignCommand::Report { path } => design_check(cli.json, &cli.registry, &path),
         },
+        Command::Baseline { command } => match command {
+            BaselineCommand::Plan { network } => {
+                baseline_plan(cli.json, &cli.registry, &network).await
+            }
+            BaselineCommand::Verify { network } => {
+                registry_verify(cli.json, &cli.registry, &network).await
+            }
+            BaselineCommand::Run { network } => fail(
+                cli.json,
+                "LiveExecutionGated",
+                None,
+                &format!(
+                    "baseline run for {network} requires explicit campaign approval, a funded key and a live manifest; this build does not execute it"
+                ),
+                2,
+            ),
+        },
         Command::Formal { command } => match command {
             FormalCommand::Check { project } => formal_check(cli.json, &project),
             FormalCommand::Sync { project, source } => formal_sync(cli.json, &project, &source),
@@ -224,6 +265,138 @@ fn version(json: bool) -> ExitCode {
         println!("{} {}", rhobuilder_core::PRODUCT, rhobuilder_core::VERSION);
         ExitCode::SUCCESS
     }
+}
+
+async fn baseline_plan(json: bool, registry_path: &Path, network: &str) -> ExitCode {
+    let profile_path = registry_path
+        .join("networks")
+        .join(format!("{network}.json"));
+    let profile = match rhobuilder_chain::load_profile(&profile_path) {
+        Ok(profile) => profile,
+        Err(error) => {
+            return fail(
+                json,
+                "ProfileError",
+                None,
+                &format!("{}: {error}", profile_path.display()),
+                2,
+            )
+        }
+    };
+    let observed = match rhobuilder_chain::probe(&profile).await {
+        Ok(observed) => observed,
+        Err(error) => {
+            let (kind, code) = match &error {
+                rhobuilder_chain::ProbeError::Gated { .. } => ("NetworkGated", 2),
+                rhobuilder_chain::ProbeError::NoEndpoint { .. } => ("NoEndpoint", 2),
+                rhobuilder_chain::ProbeError::Http(_) => ("NodeUnavailable", 4),
+                rhobuilder_chain::ProbeError::BadResponse { .. } => ("BadResponse", 4),
+                rhobuilder_chain::ProbeError::IdentityMismatch { .. } => ("IdentityMismatch", 2),
+                rhobuilder_chain::ProbeError::Io(_) | rhobuilder_chain::ProbeError::Json(_) => {
+                    ("ProfileError", 2)
+                }
+            };
+            return fail(json, kind, None, &error.to_string(), code);
+        }
+    };
+    let checks = rhobuilder_chain::compare(&profile, &observed);
+    if let Some(failure) = rhobuilder_chain::first_failure(&checks) {
+        let envelope = json!({
+            "schema": rhobuilder_core::schema("baseline-plan"),
+            "ok": false,
+            "kind": "error",
+            "network": network,
+            "observed": observed,
+            "checks": checks,
+            "error": {
+                "type": "IdentityMismatch",
+                "field": failure.name,
+                "message": failure.detail,
+            },
+        });
+        if json {
+            if let Err(error) = emit_json(&envelope) {
+                eprintln!("rhobuilder: cannot encode JSON: {error}");
+                return ExitCode::from(1);
+            }
+        } else {
+            eprintln!(
+                "baseline plan {network}: identity mismatch at {}: {}",
+                failure.name, failure.detail
+            );
+        }
+        return ExitCode::from(2);
+    }
+
+    let raw: Value = match std::fs::read_to_string(&profile_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+    {
+        Some(value) => value,
+        None => return fail(json, "ProfileError", None, "network profile is not JSON", 2),
+    };
+    let roots = raw.get("roots").cloned().unwrap_or(Value::Null);
+    let apps = ["r-cash", "r-gen", "r-sure", "r-print", "r-share"];
+    let mut steps = Vec::new();
+    for app in apps {
+        let entry = roots.get(app).cloned().unwrap_or(Value::Null);
+        let status = entry
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("missing");
+        let verified = entry
+            .get("verified")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let action = if verified {
+            "adopt"
+        } else if status == "candidate" {
+            "verify-and-adopt"
+        } else {
+            "deploy"
+        };
+        steps.push(json!({
+            "app": app,
+            "action": action,
+            "status": status,
+            "optional": app == "r-print" || app == "r-share",
+            "candidate": entry,
+        }));
+    }
+    let envelope = json!({
+        "schema": rhobuilder_core::schema("baseline-plan"),
+        "ok": true,
+        "network": network,
+        "identity": {"observed": observed, "checks": checks},
+        "steps": steps,
+        "prerequisites": [
+            "explicit campaign approval",
+            "funded ops key under the working directory (mode 600)",
+            "faucet allocation",
+            "--allow-live and a confirmation token carrying the observed networkId",
+            "root verification is opt-in and backoff-aware; a 429 is not_run",
+            "pinned sibling installers or vendored terms; no sibling repo is modified",
+        ],
+        "execution": "gated",
+        "note": "plan is read-only; baseline run is deliberately refused in this build",
+    });
+    if json {
+        return print_json(envelope);
+    }
+    println!("baseline plan {network}: gated");
+    if let Some(id) = &profile.network_id {
+        println!("  networkId: {id}");
+    }
+    for step in envelope["steps"].as_array().into_iter().flatten() {
+        println!(
+            "  {:20} {:18} {}",
+            step["app"].as_str().unwrap_or("?"),
+            step["action"].as_str().unwrap_or("?"),
+            step["status"].as_str().unwrap_or("?")
+        );
+    }
+    println!("  execution: gated (no live deploy in this build)");
+    ExitCode::SUCCESS
 }
 
 fn formal_check(json: bool, project: &Path) -> ExitCode {
@@ -869,6 +1042,20 @@ mod tests {
         .expect("parse");
         assert!(cli.json);
         assert_eq!(cli.registry, PathBuf::from("registry"));
+    }
+
+    #[test]
+    fn cli_parses_baseline_plan() {
+        let cli = Cli::try_parse_from([
+            "rhobuilder",
+            "--json",
+            "baseline",
+            "plan",
+            "--network",
+            "testnet",
+        ])
+        .expect("parse");
+        assert!(cli.json);
     }
 
     #[test]
