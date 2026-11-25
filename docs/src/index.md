@@ -15,6 +15,8 @@ nine behavioural suites. No signed public-testnet deploy has been executed.
 | Area | Status |
 |---|---|
 | Repo + DSH plugin/skills/launcher | implemented; plugin tools map to real CLI commands; no live model session |
+| Rhobuilder studio UI | branded shell + dashboard; readiness, networks, primitives, examples and CLI handoff; read-only behind the DSH token fence |
+| Non-technical fitness | adversarial review committed; readiness and release-package P0s addressed, design wizard and devnet provisioning deferred |
 | Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
 | Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` is hand-authored; other designs get generic root/resource/adapter contracts and an install manifest; canonical gates are vendored and hash-checked |
 | Lean `RhoApp` + obligations | shared RhoApp, hash check and per-arm obligation gate implemented; `bookable-service` has a shallow `proved-model`; generic scaffolds remain `owed` |

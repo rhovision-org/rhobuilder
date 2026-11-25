@@ -20,6 +20,18 @@ python3 tools/launch_dsh.py headless "Design a bookable service"
 `--check` and `--print-config` are read-only. A launch writes the skill export and the
 overlay, then runs DSH.
 
+## The studio UI
+
+The web launch mounts `agents/deepseek/ui` by absolute path through the launcher patch.
+It replaces the stock brand, sets the page title/favicon/description with the supported
+`webServer.tapIndex` transform, adds a rhobuilder welcome hero and a **Rhobuilder**
+dashboard page. The dashboard reads only local registry/evidence files and fixed read-only
+CLI commands; every route uses the DSH browser-token fence. See [Rhobuilder studio
+UI](ui.md).
+
+The launcher applies a rhobuilder persona by default (`rhobuilder` preset). Agent Teams and
+the architect/reviewer/prover subagents remain opt-in with `--study build`.
+
 ## The plugin
 
 `agents/deepseek/plugin/index.js` registers six tools over `rhobuilder --json`:

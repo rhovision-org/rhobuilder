@@ -33,6 +33,9 @@ jobs:
       - run: node --test agents/deepseek/plugin/test/*.test.mjs
       - run: node --check mcp/server.mjs
       - run: node --test mcp/test/*.test.mjs
+      - run: node --check agents/deepseek/ui/index.js
+      - run: node --check agents/deepseek/ui/client.js
+      - run: node --test agents/deepseek/ui/test/*.test.mjs
 
   launcher:
     runs-on: ubuntu-latest
@@ -45,7 +48,9 @@ jobs:
       - run: python3 tools/check_registry.py --json
       - run: python3 tools/vendor_install.py --check
       - run: python3 tools/gate_sync.py --check
+      - run: python3 tools/package_release.py --check
       - run: python3 tools/launch_dsh.py --print-config headless
+      - run: python3 tools/launch_dsh.py --print-config web | grep -q rhobuilder-ui
 
   lean:
     runs-on: ubuntu-latest

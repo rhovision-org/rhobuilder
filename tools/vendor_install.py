@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-SIBLING_ROOT = Path(os.environ.get("RHOBUILDER_SIBLING_ROOT", "/home/patrick"))
+SIBLING_ROOT = Path(os.environ.get("RHOBUILDER_SIBLING_ROOT", str(Path.home())))
 INSTALL_ROOT = ROOT / "registry" / "install"
 SCHEMA = "rhobuilder.install-plan/v1"
 ORIGIN_SCHEMA = "rhobuilder.install-origin/v1"

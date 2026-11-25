@@ -2,18 +2,19 @@ PY ?= python3
 CARGO ?= cargo
 NODE ?= node
 MDBOOK ?= mdbook
-SOURCE_ROOT ?= /home/patrick
+SOURCE_ROOT ?= $(HOME)
 DESIGN ?= fixtures/designs/booking.json
 
-.PHONY: help check rust-check fmt clippy test plugin-test launcher-test \
+.PHONY: help check rust-check fmt clippy test plugin-test ui-test launcher-test \
 	docs docs-check dsh-check registry-check registry-drift vendor-install-check gates-check \
-	chain-probe design-check design-refuse scaffold-e2e mcp-test baseline-plan formal-check clean
+	package-check chain-probe design-check design-refuse scaffold-e2e mcp-test baseline-plan formal-check clean
 
 help:
 	@echo "rhobuilder targets:"
 	@echo "  make check          fmt + clippy + rust tests + plugin tests + launcher tests + docs"
 	@echo "  make rust-check     cargo fmt --check, clippy -D warnings, cargo test"
 	@echo "  make plugin-test    node --test agents/deepseek/plugin/test"
+	@echo "  make ui-test        check and test the rhobuilder DSH UI package"
 	@echo "  make launcher-test  python unittest for tools/"
 	@echo "  make docs-check     mdBook build plus SUMMARY/link check"
 	@echo "  make dsh-check      read-only DeepSeek Harness preflight"
@@ -22,13 +23,14 @@ help:
 	@echo "  make registry-drift pinned-commit drift against $(SOURCE_ROOT)"
 	@echo "  make vendor-install-check verify pinned vendored terms and hashes"
 	@echo "  make gates-check    verify canonical gates and their vendored copies"
+	@echo "  make package-check  verify the complete release package layout"
 	@echo "  make design-check   validate $(DESIGN) and run the reuse gate"
 	@echo "  make design-refuse  assert the duplicate-escrow fixture is refused"
 	@echo "  make scaffold-e2e   generate the booking fixture and run its gates"
 	@echo "  make baseline-plan  read-only testnet baseline plan"
 	@echo "  make formal-check   P4: Lean RhoApp and per-dApp obligations"
 
-check: rust-check plugin-test mcp-test launcher-test registry-check vendor-install-check gates-check design-check docs-check
+check: rust-check plugin-test ui-test mcp-test launcher-test registry-check vendor-install-check gates-check package-check design-check docs-check
 
 rust-check: fmt clippy test
 
@@ -43,6 +45,11 @@ test:
 
 plugin-test:
 	$(NODE) --test agents/deepseek/plugin/test/*.test.mjs
+
+ui-test:
+	$(NODE) --check agents/deepseek/ui/index.js
+	$(NODE) --check agents/deepseek/ui/client.js
+	$(NODE) --test agents/deepseek/ui/test/*.test.mjs
 
 mcp-test:
 	$(NODE) --test mcp/test/*.test.mjs
@@ -85,6 +92,9 @@ vendor-install-check:
 
 gates-check:
 	$(PY) tools/gate_sync.py --check
+
+package-check:
+	$(PY) tools/package_release.py --check
 
 scaffold-e2e:
 	rm -rf /tmp/rhobuilder-e2e /tmp/rhobuilder-e2e-refused

@@ -25,6 +25,8 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -211,10 +213,32 @@ def _role_plugins() -> list[dict[str, Any]]:
             "config": {"catalogDescriptionMaxLength": 500},
         },
         {"id": "tool-fs", "name": "@deepseek-ai/dsh-tool-fs", "config": {"applyPatch": False}},
-        {"id": "tool-fs-search", "name": "@deepseek-ai/dsh-tool-fs-search"},
+        {
+            "id": "tool-fs-search",
+            "name": "@deepseek-ai/dsh-tool-fs-search",
+            "config": {"sampleOverCapGlobResults": False},
+        },
         {"id": "tool-bash", "name": "@deepseek-ai/dsh-tool-bash"},
-        {"id": "tool-todo", "name": "@deepseek-ai/dsh-tool-todo"},
+        {
+            "id": "tool-todo",
+            "name": "@deepseek-ai/dsh-tool-todo",
+            "config": {"allowParallelInProgress": True},
+        },
     ]
+
+
+def _base_preset() -> dict[str, Any]:
+    """The default rhobuilder persona, available without Agent Teams."""
+    prompt = ROOT / "agents" / "deepseek" / "prompts" / "architect.md"
+    return {
+        "id": "preset-rhobuilder",
+        "name": "@deepseek-ai/dsh-agent-preset",
+        "config": {
+            "id": "rhobuilder",
+            "order": 5,
+            "plugins": [_persona(prompt), *_role_plugins()],
+        },
+    }
 
 
 def _presets(args: argparse.Namespace, config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -278,6 +302,22 @@ def _plugin_row(rhobuilder: Command, config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _ui_row(rhobuilder: Command, config: dict[str, Any]) -> dict[str, Any]:
+    ui = ROOT / "agents" / "deepseek" / "ui" / "index.js"
+    if not ui.is_file():
+        raise FileNotFoundError(f"UI plugin is missing: {ui}")
+    return {
+        "id": "rhobuilder-ui",
+        "name": str(ui.resolve()),
+        "config": {
+            "command": rhobuilder.argv[0],
+            "args": rhobuilder.argv[1:],
+            "cwd": str(ROOT),
+            "registry": str((ROOT / "registry").resolve()),
+        },
+    }
+
+
 def _mcp_row(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any] | None:
     if not args.with_mcp:
         return None
@@ -322,10 +362,16 @@ def build_overlay(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     inserts: list[dict[str, Any]] = [_plugin_row(rhobuilder, config)]
+    ui_enabled = args.mode == "web" and not getattr(args, "no_ui", False)
+    if ui_enabled:
+        inserts.append(_ui_row(rhobuilder, config))
     mcp = _mcp_row(args, config)
     if mcp is not None:
         inserts.append(mcp)
     rows.append({"insert": inserts})
+    if ui_enabled:
+        # The UI supplies both sidebar brand slots; the shipped brand would shadow them.
+        rows.append({"id": "ui-brand-official", "disabled": True})
 
     if args.base_url:
         key_env = args.api_key_env or "RHOBUILDER_DSH_API_KEY"
@@ -358,8 +404,28 @@ def build_overlay(
         {"id": "agent-default-model", "config": {"provider": provider, "model": args.model}}
     )
 
+    architect = str(config["presets"]["architect"]["id"])
+    default_preset = architect if args.study == "build" else "rhobuilder"
+    base = _base_preset()
+    if args.mode == "web":
+        if args.study != "build":
+            rows.append({"id": "agent-preset-registry", "config": {"default": default_preset}})
+        rows.append({"insert": [base]})
+    else:
+        rows.append(
+            {
+                "insert": [
+                    {
+                        "id": "agent-preset-registry",
+                        "name": "@deepseek-ai/dsh-agent-preset-registry",
+                        "config": {"default": default_preset},
+                    },
+                    base,
+                ]
+            }
+        )
+
     if args.study == "build":
-        architect = str(config["presets"]["architect"]["id"])
         rows.append(
             {
                 "id": "agent-team",
@@ -374,18 +440,7 @@ def build_overlay(
             rows.append({"id": "agent-preset-registry", "config": {"default": architect}})
             rows.append({"insert": presets})
         else:
-            rows.append(
-                {
-                    "insert": [
-                        {
-                            "id": "agent-preset-registry",
-                            "name": "@deepseek-ai/dsh-agent-preset-registry",
-                            "config": {"default": architect},
-                        },
-                        *presets,
-                    ]
-                }
-            )
+            rows.append({"insert": presets})
     return rows
 
 
@@ -458,7 +513,7 @@ def skills_report(args: argparse.Namespace, config: dict[str, Any]) -> tuple[str
         return "warn", "skills are not exported yet; a launch writes them"
     report = export_skills.check_expected(files, [out])
     if not report["ok"]:
-        return "fail", "; ".join((report["missing"] + report["stale"])[:5])
+        return "setup", "; ".join((report["missing"] + report["stale"])[:5])
     if report["orphans"]:
         return "warn", f"orphaned skills: {', '.join(report['orphans'][:5])}"
     return "ok", f"{len(files)} skills"
@@ -473,6 +528,7 @@ class Check:
     name: str
     status: str
     detail: str
+    hint: str | None = None
 
 
 def _run(
@@ -527,7 +583,12 @@ def _probe_dsh(args: argparse.Namespace, config: dict[str, Any]) -> Check:
     if dsh is None:
         return Check("dsh", "fail", "dsh not found and npx is unavailable")
     if dsh.kind == "npx":
-        return Check("dsh", "warn", f"{dsh} (fetches on first launch)")
+        return Check(
+            "dsh",
+            "warn",
+            f"{dsh} (fetches on first launch)",
+            "The first launch needs network access; install DSH locally for an offline setup",
+        )
     try:
         proc = _run(dsh.with_args("--version"), timeout=args.timeout)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -548,7 +609,12 @@ def _probe_cli(args: argparse.Namespace) -> Check:
     if cli is None:
         return Check("rhobuilder", "fail", "no rhobuilder CLI and no cargo")
     if cli.kind == "cargo":
-        return Check("rhobuilder", "warn", f"{cli} (builds on launch)")
+        return Check(
+            "rhobuilder",
+            "warn",
+            f"{cli} (builds on launch)",
+            "The first launch may clone rcash-sdk and build; install a packaged binary for a faster start",
+        )
     try:
         proc = _run(cli.with_args("--json", "version"), timeout=args.timeout)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -594,10 +660,93 @@ def _probe_plugin(args: argparse.Namespace) -> Check:
     return Check("plugin", "ok", f"{index.name}{suffix}")
 
 
+def _probe_ui(args: argparse.Namespace) -> Check:
+    if getattr(args, "no_ui", False):
+        return Check("ui", "ok", "disabled by --no-ui")
+    ui = ROOT / "agents" / "deepseek" / "ui"
+    package = ui / "package.json"
+    if not package.is_file():
+        return Check("ui", "fail", "agents/deepseek/ui/package.json is missing")
+    try:
+        manifest = json.loads(package.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return Check("ui", "fail", f"invalid package.json: {exc}")
+    if manifest.get("name") != "rhobuilder-dsh-ui":
+        return Check("ui", "fail", "UI package name must be rhobuilder-dsh-ui")
+    exports = manifest.get("exports", {})
+    if not isinstance(exports, dict) or not isinstance(exports.get("./client"), str):
+        return Check("ui", "fail", "UI package needs exports['./client']")
+    if manifest.get("dsh", {}).get("client", {}).get("platform") != "web":
+        return Check("ui", "fail", "UI package needs dsh.client.platform=web")
+    node = resolve_node(args)
+    if node is None:
+        return Check("ui", "fail", "node not found; UI cannot be checked")
+    try:
+        for source in (ui / "index.js", ui / "client.js"):
+            if not source.is_file():
+                return Check("ui", "fail", f"{source.name} is missing")
+            proc = _run([str(node), "--check", str(source)], timeout=args.timeout)
+            if proc.returncode != 0:
+                return Check("ui", "fail", proc.stderr.strip()[-300:])
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return Check("ui", "fail", str(exc))
+    return Check("ui", "ok", f"{manifest['name']} client bundle")
+
+
+def _probe_templates(args: argparse.Namespace) -> Check:
+    templates = ROOT / "templates" / "dapp" / "common"
+    if not templates.is_dir():
+        return Check("templates", "fail", "templates/dapp/common is missing")
+    return Check("templates", "ok", str(templates.relative_to(ROOT)))
+
+
+def _probe_tool(name: str, missing_status: str, hint: str) -> Check:
+    found = shutil.which(name)
+    if found is None:
+        return Check(name, missing_status, f"{name} not found", hint)
+    return Check(name, "ok", found)
+
+
+def _probe_devnet(args: argparse.Namespace) -> Check:
+    docker = shutil.which("docker")
+    if docker is None:
+        return Check(
+            "devnet",
+            "setup",
+            "docker is not installed; devnet execution will not run",
+            "Install Docker or use a remote devnet and set RHOBUILDER_NODE",
+        )
+    node = os.environ.get("RHOBUILDER_NODE", "http://localhost:40403").rstrip("/")
+    try:
+        with urllib.request.urlopen(f"{node}/api/v1/status", timeout=3) as response:
+            status = json.load(response)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        return Check(
+            "devnet",
+            "setup",
+            f"{node} is unreachable: {exc}",
+            "Start or recover the local devnet; the dashboard will show not_run until it is healthy",
+        )
+    degraded = status.get("degraded", "unknown")
+    if degraded != "normal" or not status.get("acceptsDeploys", False):
+        return Check(
+            "devnet",
+            "setup",
+            f"{node} is {degraded}; deploys are not healthy",
+            "Restart the devnet or wait for the resource latch to clear",
+        )
+    return Check("devnet", "ok", f"{node} normal at block {status.get('latestBlockNumber', '?')}")
+
+
 def _probe_registry(args: argparse.Namespace) -> Check:
     registry = ROOT / "registry" / "primitives.json"
     if not registry.is_file():
-        return Check("registry", "warn", "registry/primitives.json is missing")
+        return Check(
+            "registry",
+            "fail",
+            "registry/primitives.json is missing",
+            "Use a complete release tarball or run from the repository root",
+        )
     try:
         document = json.loads(registry.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -659,15 +808,42 @@ def _probe_key(args: argparse.Namespace) -> Check:
     if os.environ.get(key_env):
         return Check("api-key", "ok", f"{key_env} is set")
     if args.base_url:
-        return Check("api-key", "warn", f"{key_env} is not set (only needed by the gateway)")
-    return Check("api-key", "warn", f"{key_env} is not set; export it or save it in DSH")
+        return Check(
+            "api-key",
+            "setup",
+            f"{key_env} is not set (the gateway needs it for chat)",
+            f"Export {key_env} or save it in DSH Settings → Models",
+        )
+    return Check(
+        "api-key",
+        "setup",
+        f"{key_env} is not set; chat will not answer",
+        f"Export {key_env} or save it in DSH Settings → Models",
+    )
 
 
 def run_checks(args: argparse.Namespace, config: dict[str, Any]) -> list[Check]:
-    checks = [_probe_node(args, config), _probe_dsh(args, config), _probe_cli(args), _probe_plugin(args)]
+    checks = [
+        _probe_node(args, config),
+        _probe_dsh(args, config),
+        _probe_cli(args),
+        _probe_plugin(args),
+        _probe_ui(args),
+    ]
     status, detail = skills_report(args, config)
-    checks.append(Check("skills", status, detail))
+    checks.append(Check("skills", status, detail, "A launch exports the curated skills"))
     checks.append(_probe_registry(args))
+    checks.append(_probe_templates(args))
+    checks.append(
+        _probe_tool(
+            "cargo",
+            "warn",
+            "Source builds are unavailable; use the packaged binary",
+        )
+    )
+    checks.append(_probe_devnet(args))
+    checks.append(_probe_tool("lake", "setup", "Install Lean/lake for formal checks"))
+    checks.append(_probe_tool("mdbook", "warn", "Install mdBook to build the docs"))
     mcp = _probe_mcp(args, config)
     if mcp is not None:
         checks.append(mcp)
@@ -679,6 +855,11 @@ def _launch_argv(
     args: argparse.Namespace, dsh: Command, patch: Path, task: str | None
 ) -> list[str]:
     argv = [*dsh.argv, "--profile", args.mode, "--patch", str(patch)]
+    if args.mode == "web":
+        if getattr(args, "port", None) is not None:
+            argv.extend(["--port", str(args.port)])
+        if getattr(args, "no_open", False):
+            argv.append("--no-open")
     if task:
         argv.append(task)
     return argv
@@ -742,6 +923,9 @@ def parser() -> argparse.ArgumentParser:
         default="workspace-write",
     )
     p.add_argument("--with-mcp", action="store_true", help="mount the optional MCP server")
+    p.add_argument("--no-ui", action="store_true", help="do not mount the rhobuilder web UI")
+    p.add_argument("--port", type=int, default=None, help="web UI port (default: DSH 3080)")
+    p.add_argument("--no-open", action="store_true", help="do not open the web UI in a browser")
     p.add_argument("--check", action="store_true", help="run read-only checks")
     p.add_argument("--print-config", action="store_true", help="print the overlay only")
     p.add_argument("--dry-run", action="store_true", help="print overlay and argv; write nothing")
@@ -761,15 +945,24 @@ def main(argv: list[str] | None = None) -> int:
         args.mode = "headless"
     if args.check:
         checks = run_checks(args, config)
-        ok = all(check.status != "fail" for check in checks)
+        failed = [check for check in checks if check.status == "fail"]
+        setup = [check for check in checks if check.status == "setup"]
+        ok = not failed and not setup
         if args.json:
             print(
                 json.dumps(
                     {
                         "schema": CHECK_SCHEMA,
                         "ok": ok,
+                        "status": "ok" if ok else ("failed" if failed else "setup_required"),
+                        "setupRequired": [check.name for check in setup],
                         "checks": [
-                            {"name": c.name, "status": c.status, "detail": c.detail}
+                            {
+                                "name": c.name,
+                                "status": c.status,
+                                "detail": c.detail,
+                                **({"hint": c.hint} if c.hint else {}),
+                            }
                             for c in checks
                         ],
                     },
@@ -778,9 +971,17 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             for check in checks:
-                print(f"{check.status:4} {check.name:10} {check.detail}")
-            print("dsh-check: " + ("ok" if ok else "failed"))
-        return 0 if ok else 1
+                suffix = f" ({check.hint})" if check.hint else ""
+                print(f"{check.status:5} {check.name:10} {check.detail}{suffix}")
+            print(
+                "dsh-check: "
+                + ("ok" if ok else ("setup required" if setup and not failed else "failed"))
+            )
+        if failed:
+            return 1
+        if setup:
+            return 2
+        return 0
     if args.print_config or args.dry_run:
         rhobuilder = resolve_rhobuilder(args)
         if rhobuilder is None:

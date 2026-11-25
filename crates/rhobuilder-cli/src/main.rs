@@ -25,12 +25,22 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
-    /// Registry root (default: ./registry).
-    #[arg(long, global = true, default_value = "registry")]
+    /// Registry root (default: ./registry, or RHOBUILDER_REGISTRY).
+    #[arg(
+        long,
+        global = true,
+        env = "RHOBUILDER_REGISTRY",
+        default_value = "registry"
+    )]
     registry: PathBuf,
 
-    /// Template root (default: ./templates/dapp).
-    #[arg(long, global = true, default_value = "templates/dapp")]
+    /// Template root (default: ./templates/dapp, or RHOBUILDER_TEMPLATES).
+    #[arg(
+        long,
+        global = true,
+        env = "RHOBUILDER_TEMPLATES",
+        default_value = "templates/dapp"
+    )]
     templates: PathBuf,
 
     #[command(subcommand)]
@@ -616,6 +626,14 @@ fn confirm_token(
     token
 }
 
+fn checked_keys_path(path: &Path, network: &str) -> Result<PathBuf, String> {
+    if network == "devnet" {
+        return Ok(path.to_path_buf());
+    }
+    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+    keystore::require_under(path, &cwd).map_err(|error| error.to_string())
+}
+
 fn digest_text(text: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
@@ -836,12 +854,16 @@ async fn baseline_fund(
         Ok(value) => value,
         Err(code) => return code,
     };
+    let keys_path = match checked_keys_path(keys_path, network) {
+        Ok(path) => path,
+        Err(error) => return fail(json, "UnsafeKeyPath", Some("keys"), &error, 6),
+    };
     if network != "devnet" {
-        if let Err(error) = keystore::assert_safe_for(keys_path, network) {
+        if let Err(error) = keystore::assert_safe_for(&keys_path, network) {
             return fail(json, "UnsafeKey", Some("keys"), &error.to_string(), 6);
         }
     }
-    let keys = match keystore::load(keys_path) {
+    let keys = match keystore::load(&keys_path) {
         Ok(keys) => keys,
         Err(error) => return fail(json, "Keystore", Some("keys"), &error.to_string(), 6),
     };
@@ -1113,7 +1135,11 @@ async fn baseline_run(
             6,
         );
     };
-    if let Err(error) = keystore::assert_safe_for(keys_path, network) {
+    let keys_path = match checked_keys_path(keys_path, network) {
+        Ok(path) => path,
+        Err(error) => return fail(json, "UnsafeKeyPath", Some("keys"), &error, 6),
+    };
+    if let Err(error) = keystore::assert_safe_for(&keys_path, network) {
         return fail(json, "UnsafeKey", Some("keys"), &error.to_string(), 6);
     }
     if network != "devnet" {
@@ -1137,7 +1163,7 @@ async fn baseline_run(
             );
         }
     }
-    let keys = match keystore::load(keys_path) {
+    let keys = match keystore::load(&keys_path) {
         Ok(keys) => keys,
         Err(error) => return fail(json, "Keystore", Some("keys"), &error.to_string(), 6),
     };
@@ -1328,10 +1354,14 @@ async fn baseline_verify(
         let Some(keys_path) = keys_path else {
             return fail(json, "MissingKey", Some("keys"), "--deep needs --keys", 6);
         };
-        if let Err(error) = keystore::assert_safe_for(keys_path, network) {
+        let keys_path = match checked_keys_path(keys_path, network) {
+            Ok(path) => path,
+            Err(error) => return fail(json, "UnsafeKeyPath", Some("keys"), &error, 6),
+        };
+        if let Err(error) = keystore::assert_safe_for(&keys_path, network) {
             return fail(json, "UnsafeKey", Some("keys"), &error.to_string(), 6);
         }
-        let keys = match keystore::load(keys_path) {
+        let keys = match keystore::load(&keys_path) {
             Ok(keys) => keys,
             Err(error) => return fail(json, "Keystore", Some("keys"), &error.to_string(), 6),
         };
@@ -1833,7 +1863,11 @@ async fn deploy_execute(
             6,
         );
     };
-    if let Err(error) = keystore::assert_safe_for(keys_path, network) {
+    let keys_path = match checked_keys_path(keys_path, network) {
+        Ok(path) => path,
+        Err(error) => return fail(json, "UnsafeKeyPath", Some("keys"), &error, 6),
+    };
+    if let Err(error) = keystore::assert_safe_for(&keys_path, network) {
         return fail(json, "UnsafeKey", Some("keys"), &error.to_string(), 6);
     }
     if network != "devnet" {
@@ -1881,7 +1915,7 @@ async fn deploy_execute(
             3,
         );
     }
-    let keys = match keystore::load(keys_path) {
+    let keys = match keystore::load(&keys_path) {
         Ok(keys) => keys,
         Err(error) => return fail(json, "Keystore", Some("keys"), &error.to_string(), 6),
     };
@@ -2594,11 +2628,15 @@ async fn chain_call(
     if term.len() > executor::MAX_TERM_BYTES {
         return fail(json, "GateFailure", None, "term exceeds 64 KiB", 5);
     }
-    let keys = match keystore::load(keys_path) {
+    let keys_path = match checked_keys_path(keys_path, network) {
+        Ok(path) => path,
+        Err(error) => return fail(json, "UnsafeKeyPath", Some("keys"), &error, 6),
+    };
+    let keys = match keystore::load(&keys_path) {
         Ok(keys) => keys,
         Err(error) => return fail(json, "Keystore", Some("keys"), &error.to_string(), 6),
     };
-    if let Err(error) = keystore::assert_safe_for(keys_path, network) {
+    if let Err(error) = keystore::assert_safe_for(&keys_path, network) {
         return fail(json, "UnsafeKey", Some("keys"), &error.to_string(), 6);
     }
     let key = match keys.key("deployer") {
@@ -2873,9 +2911,52 @@ async fn chain_probe(json: bool, registry: &Path, network: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn error_copy(kind: &str) -> (&'static str, Option<&'static str>) {
+    match kind {
+        "Usage" => ("usage", Some("Check the command arguments and try again.")),
+        "IdentityMismatch" | "NetworkGated" => (
+            "identity_mismatch",
+            Some("The node is not the network this plan or profile expects. Re-probe before planning."),
+        ),
+        "LiveExecutionGated" => (
+            "gated",
+            Some("A live action needs explicit approval, a funded key and the printed confirmation token."),
+        ),
+        "UnsafeKey" | "UnsafeKeyPath" | "MissingKey" => (
+            "unsafe_key",
+            Some("Use a mode-0600 key file under the project or installation; never paste a key into chat."),
+        ),
+        "MissingDependency" => (
+            "missing_dependency",
+            Some("Install or verify the shared primitives that this app reuses before deploying it."),
+        ),
+        "PartialRoot" | "Verification" => (
+            "partial_root",
+            Some("Stop and reconcile the existing root; do not redeploy a commodity primitive."),
+        ),
+        "NodeUnavailable" | "BadResponse" | "Http" => (
+            "node_unavailable",
+            Some("The node is unreachable, unhealthy or rate-limited. Check the devnet/testnet status."),
+        ),
+        "GateFailure" => (
+            "gate_failure",
+            Some("A generated-project gate failed. Open the gate output before continuing."),
+        ),
+        "DesignError" | "RegistryError" | "InstallPlanError" => (
+            "setup",
+            Some("Fix the local design, registry or install-plan input before retrying."),
+        ),
+        _ => ("error", None),
+    }
+}
+
 fn fail(json: bool, kind: &str, field: Option<&str>, message: &str, code: u8) -> ExitCode {
     if json {
-        let mut error = json!({"type": kind, "message": message});
+        let (status, hint) = error_copy(kind);
+        let mut error = json!({"type": kind, "message": message, "status": status});
+        if let Some(hint) = hint {
+            error["hint"] = Value::String(hint.to_string());
+        }
         if let Some(field) = field {
             error["field"] = Value::String(field.to_string());
         }
@@ -2980,7 +3061,7 @@ mod tests {
             "registry",
             "drift",
             "--source-root",
-            "/home/patrick",
+            "/tmp/rhobuilder-siblings",
             "--strict",
         ])
         .expect("parse");

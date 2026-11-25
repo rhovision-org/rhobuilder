@@ -27,6 +27,9 @@ curated = [
   "rhobuilder-testing",
   "rhobuilder-deploy",
   "rhobuilder-standards",
+  "rhobuilder-rho-calculus",
+  "rhobuilder-coc-types",
+  "rhobuilder-lean4",
 ]
 
 [presets.architect]

@@ -18,6 +18,8 @@ no signed testnet deploy has been executed. Mainnet remains refused.
 | Area | Status |
 |---|---|
 | Repo + DSH plugin/skills/launcher | implemented; DSH 0.2.2-rc.5 `--dump-config` validates web and headless overlays; no live model session (`DEEPSEEK_API_KEY` unset) |
+| Rhobuilder studio UI | branded title/favicon/wordmark/hero + Rhobuilder dashboard; readiness, networks, primitives, examples, CLI handoff; read-only behind the DSH token fence |
+| Non-technical fitness | adversarial review committed at `docs/src/review/non-technical-fitness.md`; readiness and package P0s addressed, design-wizard/devnet provisioning deferred |
 | Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
 | Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` is hand-authored; other designs get generic root/resource/adapter contracts and a `.rhobuilder-contracts.json` install manifest; canonical gates are vendored and hash-checked |
 | Lean `RhoApp` + obligations | shared RhoApp, vendoring, hash check and per-arm obligation gate implemented; `bookable-service` has a shallow `proved-model` (`voteOnce`, provider exclusion, settlement conservation); generic scaffolds remain `owed` |
@@ -41,7 +43,7 @@ no signed testnet deploy has been executed. Mainnet remains refused.
 cargo build -p rhobuilder-cli
 ./target/debug/rhobuilder version --json
 ./target/debug/rhobuilder --json chain probe --network testnet
-./target/debug/rhobuilder --json registry drift --source-root /home/patrick --strict
+./target/debug/rhobuilder --json registry drift --source-root "$HOME" --strict
 
 # all-five plans: read-only; testnet execution stays gated
 ./target/debug/rhobuilder --json baseline plan --network testnet
@@ -55,7 +57,12 @@ cargo build -p rhobuilder-cli
 ./target/debug/rhobuilder --json deploy plan --project /tmp/app --network devnet
 
 python3 tools/launch_dsh.py --check --json
+python3 tools/launch_dsh.py --with-mcp --port 3081 --no-open web
 python3 tools/launch_dsh.py --print-config headless
+
+# complete release tarball (binary + registry + templates + UI + launcher)
+cargo build --release -p rhobuilder-cli
+python3 tools/package_release.py --check --build --self-test --json
 ```
 
 A real DSH launch exports the skill catalog to `.dsh/skills/`, writes a mode-specific
@@ -65,9 +72,9 @@ profile with `--patch`.
 ## Layout
 
 - `crates/` — Rust core, registry, chain, formal, gates and CLI.
-- `agents/deepseek/` — DSH plugin, harness.toml, presets, harness-only procedure.
+- `agents/deepseek/` — DSH plugin, branded studio UI, harness.toml, presets, procedure.
 - `skills/` — canonical skill sources (`skills.toml` is the metadata source).
-- `tools/` — launcher, skill export, docs check, tests.
+- `tools/` — launcher, packaged launcher, release packager, skill export, docs/tests.
 - `docs/` — mdBook source, including the measured P5 evidence.
 - `gates/` — canonical checkers and their hash manifest; vendored into the scaffold.
 - `registry/`, `templates/`, `formal/` — catalog, scaffold and Lean.

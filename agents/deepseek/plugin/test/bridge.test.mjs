@@ -74,7 +74,7 @@ test('design validate names the action and path', () => {
 test('registry drift carries the source root and strict flag', () => {
   const invocation = buildInvocation(
     'registry',
-    { action: 'drift', sourceRoot: '/home/patrick', strict: true },
+    { action: 'drift', sourceRoot: '/tmp/rhobuilder-siblings', strict: true },
     CONFIG,
   )
   assert.deepEqual(invocation.args, [
@@ -82,7 +82,7 @@ test('registry drift carries the source root and strict flag', () => {
     'registry',
     'drift',
     '--source-root',
-    '/home/patrick',
+    '/tmp/rhobuilder-siblings',
     '--strict',
   ])
 })

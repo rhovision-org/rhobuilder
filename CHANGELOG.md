@@ -21,6 +21,13 @@
 - Align the DSH plugin with the real CLI: `check`, `deploy plan`, `chain status`,
   `chain deploy-status`; remove the obsolete `--read-only` and `chain explore` bridge.
 - Add the manual release workflow, issue/PR templates, and Cargo package metadata.
+- Add the non-technical fitness review and commit its dispositions as acceptance.
+- Add the branded DSH studio UI: title/favicon/wordmark, welcome hero, Rhobuilder
+  dashboard, readiness/networks/primitives/examples and CLI handoff.
+- Make launcher readiness honest (`setup_required`) and mount the rhobuilder persona by
+  default; add `--port`, `--no-open` and `--no-ui`.
+- Add the complete release tarball with registry/templates/UI/launcher and an extraction
+  self-test; add CLI registry/template env defaults and live key-path containment.
 - Update docs/status to the measured P5 and gated P6 state.
 
 ## 0.1.0

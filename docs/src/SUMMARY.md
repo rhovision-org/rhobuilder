@@ -1,6 +1,8 @@
 # Summary
 
 - [rhobuilder](index.md)
+- [Start here](start.md)
+- [Rhobuilder studio UI](ui.md)
 - [DeepSeek Harness](dsh.md)
 - [Design workflow](workflow.md)
 - [Design and the reuse gate](design.md)
@@ -12,3 +14,4 @@
 - [Public-testnet baseline](baseline.md)
 - [Evidence](evidence.md)
 - [Registry and reuse](registry.md)
+- [Non-technical fitness review](review/non-technical-fitness.md)

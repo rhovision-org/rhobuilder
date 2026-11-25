@@ -5,6 +5,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,6 +32,9 @@ def args_for(**overrides):
         "study": "none",
         "mode": "headless",
         "with_mcp": False,
+        "no_ui": False,
+        "port": None,
+        "no_open": False,
         "permission_mode": "workspace-write",
         "dsh_home": "/tmp/rhobuilder-dsh-home",
         "task": [],
@@ -66,6 +70,40 @@ class OverlayTests(unittest.TestCase):
         self.assertIn("agent-default-model", ids)
         default = next(row for row in overlay if row.get("id") == "agent-default-model")
         assert default["config"]["model"] == "deepseek-v4-flash"
+
+    def test_web_mounts_the_branded_ui_and_default_persona(self) -> None:
+        overlay = launch_dsh.build_overlay(args_for(mode="web"), self.config, self.cli)
+        inserts = [row["insert"] for row in overlay if "insert" in row]
+        items = [item for batch in inserts for item in batch]
+        ui = next(item for item in items if item.get("id") == "rhobuilder-ui")
+        self.assertTrue(ui["name"].endswith("agents/deepseek/ui/index.js"))
+        brand = next(row for row in overlay if row.get("id") == "ui-brand-official")
+        self.assertTrue(brand["disabled"])
+        preset = next(item for item in items if item.get("id") == "preset-rhobuilder")
+        self.assertEqual(preset["config"]["id"], "rhobuilder")
+        registry = next(row for row in overlay if row.get("id") == "agent-preset-registry")
+        self.assertEqual(registry["config"]["default"], "rhobuilder")
+
+    def test_no_ui_omits_the_ui_and_brand_override(self) -> None:
+        overlay = launch_dsh.build_overlay(
+            args_for(mode="web", no_ui=True), self.config, self.cli
+        )
+        ids = [row.get("id") for row in overlay]
+        self.assertNotIn("ui-brand-official", ids)
+        inserts = [row["insert"] for row in overlay if "insert" in row]
+        self.assertFalse(any(item.get("id") == "rhobuilder-ui" for batch in inserts for item in batch))
+
+    def test_web_launch_argv_passes_port_and_no_open(self) -> None:
+        args = args_for(mode="web", port=3082, no_open=True)
+        dsh = launch_dsh.Command(["dsh"], "binary")
+        argv = launch_dsh._launch_argv(args, dsh, Path("/tmp/patch.yml"), None)
+        self.assertEqual(argv[-3:], ["--port", "3082", "--no-open"])
+
+    def test_api_key_is_setup_required_when_unset(self) -> None:
+        with mock.patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
+            check = launch_dsh._probe_key(args_for())
+        self.assertEqual(check.status, "setup")
+        self.assertIn("DEEPSEEK_API_KEY", check.detail)
 
     def test_study_build_headless_inserts_the_registry(self) -> None:
         overlay = launch_dsh.build_overlay(

@@ -32,13 +32,18 @@ It registers six tools over `rhobuilder --json`:
 envelope. The plugin's `spawn` is trusted host code; the surface stays narrow and never
 exposes signed deploys.
 
+`ui/` is a second absolute-path package for the web profile. It brands the shell and adds
+the Rhobuilder dashboard; its server half serves read-only `/rhobuilder/api/*` routes
+behind DSH's browser-token fence. See `docs/src/ui.md`.
+
 ## Skills and presets
 
 `skills.toml` is the catalog source; the launcher exports `.dsh/skills/<name>/SKILL.md`.
 The catalog is capped at 12 entries including the `/rhobuilder-build` procedure. Critical
 rules stay inline in `SKILL.md`; DSH does not auto-read `references/`.
 
-`--study build` enables Agent Teams and the architect (root), reviewer and prover presets.
+The base `rhobuilder` persona is applied by default without Agent Teams. `--study build`
+additionally enables Agent Teams and the architect (root), reviewer and prover presets.
 Web overwrites `agent-preset-registry`; headless inserts it.
 
 ## Versions and permissions
