@@ -1,17 +1,23 @@
 # Evidence
 
-The machine-readable P5 record is [`evidence/p5-devnet.json`](evidence/p5-devnet.json).
+The machine-readable P5 records are:
 
-It contains the devnet identity, the five pinned roots, the generated app root, and the
-nine suite results. It contains no keys.
+- [`evidence/p5-devnet.json`](evidence/p5-devnet.json) — the five pinned roots, the
+  hand-authored `bookable-service` root, and nine suite results.
+- [`evidence/p5-generic-ledger.json`](evidence/p5-generic-ledger.json) — the generic
+  `payments-ledger` root, its four generated contracts, and the static/smoke checks.
+
+They contain no keys.
 
 ## Reading it
 
 - `baseline` names each app, its pinned commit, root URI, status and step count.
-- `app` names the generated `bookable-service` root and status.
+- `app` names the generated app root and status.
 - `suites.results` is the same `pass`/`fail`/`not_run` record written to
   `deployments/suite-results.json`.
 - `notes` records the r-cash core-profile decision and the zero-duplicate adopt run.
+- The generic ledger record also lists `.rhobuilder-contracts.json` and notes that its
+  design arms remain `owed`; it has no behavioural suite.
 
 Evidence is not authority. The live check is `baseline verify --deep`, which re-resolves
 every root at a finalized block.

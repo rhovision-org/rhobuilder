@@ -1,0 +1,31 @@
+{
+  "schema": "rhobuilder.p5-generic-evidence/v1",
+  "recordedAt": "2026-11-25T18:38:18Z",
+  "network": "devnet",
+  "networkId": "testnet",
+  "shardId": "/root",
+  "app": {
+    "slug": "payments-ledger",
+    "design": "fixtures/designs/payments-ledger.json",
+    "root": "rho:id:f9he49buunbwm34th3k8cya4j3imgghxp9eg3hnt5yc9urr4syfo",
+    "status": "verified",
+    "verified": true,
+    "steps": 4
+  },
+  "paths": {
+    "generic_contracts": [
+      "contracts/src/10_ledger.rho",
+      "contracts/src/20_payments.rho",
+      "contracts/src/30_ledger_notes.rho",
+      "contracts/src/00_root.rho"
+    ],
+    "manifest": ".rhobuilder-contracts.json"
+  },
+  "checks": {
+    "make_check": "pass",
+    "deploy_execute": "verified",
+    "unit_smoke": "pass",
+    "make_unit_all": "not_run (devnet throttled after restart)"
+  },
+  "note": "Generic root/resource/new-cell/adapter path. The design arms remain owed; no behavioural suite is generated."
+}

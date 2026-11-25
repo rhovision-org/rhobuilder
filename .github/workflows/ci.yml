@@ -77,6 +77,11 @@ jobs:
             --design fixtures/designs/booking.json --template full --apply --force
           make -C /tmp/rhobuilder-full client-check
           npm --prefix /tmp/rhobuilder-full/web audit --audit-level=high
+      - run: |
+          cargo run -q -p rhobuilder-cli -- new /tmp/rhobuilder-ledger \
+            --design fixtures/designs/payments-ledger.json --template headless --apply --force
+          make -C /tmp/rhobuilder-ledger check
+          ./target/debug/rhobuilder --json formal check --project /tmp/rhobuilder-ledger
 
   docs:
     runs-on: ubuntu-latest
