@@ -8,7 +8,8 @@ separate explicit campaign approval and a funded key.
 rhobuilder --json baseline plan   --network testnet
 rhobuilder --json baseline run    --network testnet --dry-run
 rhobuilder --json baseline run    --network testnet --execute --keys <path>   # exit 5 without approval
-rhobuilder --json baseline verify --network testnet --deep --keys <path>
+rhobuilder --json baseline verify --network testnet --deep --keys <path> \
+  --allow-live --confirm 'network=testnet,networkId=…,genesis=…'
 ```
 
 ## What is implemented
@@ -51,7 +52,8 @@ deploy is the fallback when no candidate verifies; a second r-cash root is never
 - The faucet is one drip per address (0.3 REV) and rate-limited. `baseline fund --plan`
   must show the arithmetic; a 429 is `not_run`.
 - A stored manifest is evidence, not authority. `baseline verify --deep` re-resolves
-  every root; a testnet reset invalidates prior roots.
+  every root; on testnet it signs Root reads, so it needs `--allow-live` and the identity
+  confirmation token just like execute. A testnet reset invalidates prior roots.
 
 ## Why live remains gated
 

@@ -48,6 +48,8 @@
       "whyUnique": "Reputation-weighted panel selection is a coordination protocol; no registered primitive selects or weights a dispute panel.",
       "noRegisteredAlternative": ["rsure.claim"],
       "arms": ["selectPanel", "recordVerdict"],
+      "leanStatus": "proved-model",
+      "lean": "voteOnce",
       "invariants": ["a panelist votes once per dispute", "the panel cannot include the provider"]
     }
   ],

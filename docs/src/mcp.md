@@ -23,6 +23,10 @@ tools appear as `mcp__rhobuilder__*`.
 - `rhobuilder_design_check`.
 - `rhobuilder_scaffold_plan` (never applies).
 - `rhobuilder_chain_probe` (read-only, no exploratory deploy).
+- `rhobuilder_deploy_plan` (read-only app plan).
+- `rhobuilder_baseline_plan`, `rhobuilder_baseline_verify` (read-only; no deep signed
+  verification).
+- `rhobuilder_check` (runs the project Makefile gates; no chain write).
 - `rhobuilder_formal_check`.
 
 No tool applies a scaffold, signs a deploy, writes a key or mutates the registry. Those

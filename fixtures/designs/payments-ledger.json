@@ -1,0 +1,74 @@
+{
+  "schema": "rhobuilder.design/v1",
+  "app": {
+    "name": "Payments Ledger",
+    "slug": "payments-ledger",
+    "summary": "Record app-level receipt notes against r-cash accounts without rebuilding payments.",
+    "networks": ["devnet", "testnet"]
+  },
+  "uniqueValue": "A local receipt-note ledger that references r-cash account-factory accounts; payments and accounts are reused.",
+  "actors": [
+    { "id": "operator", "capabilities": ["record", "read"] }
+  ],
+  "resources": [
+    {
+      "id": "ledger",
+      "owner": "app",
+      "stateCell": "ledgerState",
+      "lifecycle": ["open", "closed"]
+    }
+  ],
+  "components": [
+    {
+      "id": "payments",
+      "tag": "reuse",
+      "primitive": "rcash.account-factory",
+      "adapter": "payments-adapter.rho"
+    },
+    {
+      "id": "ledger-notes",
+      "tag": "new",
+      "kind": "custom",
+      "whyUnique": "Receipt notes tied to an app ledger are not a registered primitive; accounts and transfers are r-cash's surface.",
+      "noRegisteredAlternative": ["rcash.account-factory"],
+      "arms": ["record", "read"],
+      "invariants": ["a note is appended by the ledger owner only"]
+    }
+  ],
+  "graph": {
+    "vertices": [
+      { "id": "ledger", "owner": "app", "kind": "cell" },
+      { "id": "notes", "owner": "app", "kind": "cell" }
+    ],
+    "edges": [
+      {
+        "id": "ledger-reuses-account-factory",
+        "from": "ledger",
+        "to": "account",
+        "verb": "references",
+        "kind": "call"
+      }
+    ]
+  },
+  "conservation": [
+    {
+      "path": "notes -> account",
+      "assertion": "notes reference accounts; the app does not mint or move value"
+    }
+  ],
+  "concurrency": [
+    {
+      "risk": "two operators append the same note",
+      "mechanism": "the linear ledger cell takes and reposts once per append"
+    }
+  ],
+  "remedies": [],
+  "acceptance": [
+    {
+      "id": "record-note",
+      "given": "an open ledger",
+      "when": "the operator records a note",
+      "then": "the note is visible and the ledger remains open"
+    }
+  ]
+}

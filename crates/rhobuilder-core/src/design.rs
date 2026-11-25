@@ -100,6 +100,10 @@ pub struct Component {
     pub arms: Vec<String>,
     #[serde(default)]
     pub invariants: Vec<String>,
+    #[serde(default)]
+    pub lean_status: Option<String>,
+    #[serde(default)]
+    pub lean: Option<String>,
     #[serde(default, rename = "override")]
     pub override_: Option<Override>,
 }
@@ -545,6 +549,8 @@ mod tests {
             no_registered_alternative: vec![],
             arms: vec!["fund".into()],
             invariants: vec![],
+            lean_status: None,
+            lean: None,
             override_: None,
         });
         assert!(!design.validate().ok);
@@ -565,6 +571,8 @@ mod tests {
             no_registered_alternative: vec![],
             arms: vec![],
             invariants: vec![],
+            lean_status: None,
+            lean: None,
             override_: None,
         });
         assert!(!design.validate().ok);

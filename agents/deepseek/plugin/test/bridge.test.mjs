@@ -142,6 +142,33 @@ test('chain status carries the network', () => {
   ])
 })
 
+test('baseline plan and verify map to read-only commands', () => {
+  const plan = buildInvocation(
+    'baseline',
+    { action: 'plan', network: 'testnet' },
+    CONFIG,
+  )
+  assert.deepEqual(plan.args, [
+    '--json',
+    'baseline',
+    'plan',
+    '--network',
+    'testnet',
+  ])
+  const verify = buildInvocation(
+    'baseline',
+    { action: 'verify', network: 'devnet' },
+    CONFIG,
+  )
+  assert.deepEqual(verify.args, [
+    '--json',
+    'baseline',
+    'verify',
+    '--network',
+    'devnet',
+  ])
+})
+
 test('check maps to the project gate profile', () => {
   const invocation = buildInvocation(
     'check',

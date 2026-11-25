@@ -55,5 +55,11 @@ forbidden. This checks the model obligation, not a refinement of deployed Rholan
 needs a theorem, a corpus vector and a suite assertion. `owed` is first-class. Never write
 `verified` or a claim of Rholang refinement.
 
+The `bookable-service` example carries a shallow dispute model: `voteOnce` proves the
+second vote precondition fails, provider exclusion is explicit, and `settleConserves`
+proves `settled + refund = amount`. Its `spec/flows/core.yaml` names `voteOnce` as
+`proved-model`, so `formal check --strict` passes for that example. Generic scaffolds keep
+their arms `owed`.
+
 The app keeps its own `Basic`, `Invariants`, `Emit`, `Audit` and `Model/*`; `Emit` and
 `Audit` are app-specific names and vectors and are not moved into `RhoApp`.

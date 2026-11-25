@@ -177,6 +177,7 @@ pub fn obligations(project: &Path, strict: bool) -> Result<Value, ScaffoldError>
         .map_err(|error| ScaffoldError::Unresolved(format!("invalid flows JSON: {error}")))?;
     let mut obligations = Vec::new();
     let mut violations = Vec::new();
+    let mut named: Vec<(String, String)> = Vec::new();
     if let Some(components) = flows.get("components").and_then(Value::as_array) {
         for component in components {
             let arms: Vec<String> = component
@@ -210,6 +211,8 @@ pub fn obligations(project: &Path, strict: bool) -> Result<Value, ScaffoldError>
                 }
             } else if theorem.is_empty() {
                 violations.push(format!("{id}: status {status} has no named theorem"));
+            } else {
+                named.push((id.to_string(), theorem.to_string()));
             }
             obligations.push(json!({
                 "component": id,
@@ -221,6 +224,7 @@ pub fn obligations(project: &Path, strict: bool) -> Result<Value, ScaffoldError>
     }
 
     let mut lean_files = 0;
+    let mut lean_text = String::new();
     let lean_root = project.join("spec").join("lean");
     if lean_root.is_dir() {
         let mut stack = vec![lean_root];
@@ -254,7 +258,18 @@ pub fn obligations(project: &Path, strict: bool) -> Result<Value, ScaffoldError>
                         ));
                     }
                 }
+                lean_text.push_str(&text);
+                lean_text.push('\n');
             }
+        }
+    }
+    for (component, theorem) in named {
+        let present = lean_text.contains(&format!("theorem {theorem}"))
+            || lean_text.contains(&format!("lemma {theorem}"));
+        if !present {
+            violations.push(format!(
+                "{component}: named theorem {theorem} is not in spec/lean"
+            ));
         }
     }
 
