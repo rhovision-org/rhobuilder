@@ -25,7 +25,8 @@
     "make_check": "pass",
     "deploy_execute": "verified",
     "unit_smoke": "pass",
-    "make_unit_all": "not_run (devnet throttled after restart)"
+    "make_unit_all": "not_run (devnet throttled after restart)",
+    "root_resolve": "pass (4 keys)"
   },
   "note": "Generic root/resource/new-cell/adapter path. The design arms remain owed; no behavioural suite is generated."
 }

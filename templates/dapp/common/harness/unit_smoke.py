@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NETWORK = os.environ.get("RHOBUILDER_NETWORK", "devnet")
+BIN = os.environ.get("RHOBUILDER_BIN", "rhobuilder")
+KEYS = os.environ.get("RHOBUILDER_KEYS", ".ops/devnet/keys.json")
+REGISTRY = os.environ.get("RHOBUILDER_REGISTRY", "")
 REQUIRED = [
     "design.json",
     "reuse-report.json",
@@ -19,6 +23,56 @@ REQUIRED = [
     "audit/registers/arms.yaml",
     ".rhobuilder.json",
 ]
+
+
+def resolve_roots(root: str, keys: list[str]) -> bool:
+    for key in keys:
+        term = f"""
+new rl(`rho:registry:lookup`), ch, ret, d(`rho:rchain:deployId`) in {{
+  rl!(`{root}`, *ch) |
+  for (C <- ch) {{
+    C!("resolve", "{key}", 1, *ret) |
+    for (@r <- ret) {{ d!(r) }}
+  }}
+}}
+"""
+        command = [BIN, "--json"]
+        if REGISTRY:
+            command.extend(["--registry", REGISTRY])
+        command.extend(
+            [
+                "chain",
+                "call",
+                "--network",
+                NETWORK,
+                "--keys",
+                KEYS,
+                "--execute",
+                "--term",
+                term,
+            ]
+        )
+        proc = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+        if proc.returncode != 0:
+            print(f"  fail: chain call for {key}: {proc.stdout}{proc.stderr}")
+            return False
+        try:
+            value = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            print(f"  fail: chain call for {key} returned non-JSON")
+            return False
+        result = value.get("result", [])
+        reply = result[0] if len(result) == 1 else result
+        if not (
+            isinstance(reply, list)
+            and reply
+            and reply[0] is True
+            and isinstance(reply[1], str)
+            and reply[1].startswith("rho:id:")
+        ):
+            print(f"  fail: {key} did not resolve: {reply!r}")
+            return False
+    return True
 
 
 def report_of(value: dict) -> dict:
@@ -46,9 +100,17 @@ def main() -> int:
         if not report.get("verified", False):
             print(f"scaffold-smoke: fail (app root not verified: {report.get('status')})")
             return 1
-        if not report.get("root_uri") and not report.get("rootUri"):
+        root = report.get("rootUri") or report.get("root_uri")
+        if not root:
             print("scaffold-smoke: fail (app report has no rootUri)")
             return 1
+        contracts_path = ROOT / ".rhobuilder-contracts.json"
+        if contracts_path.is_file():
+            contracts = json.loads(contracts_path.read_text(encoding="utf-8"))
+            keys = contracts.get("requiredKeys", [])
+            if keys and not resolve_roots(root, keys):
+                return 1
+            print(f"  root-resolve: ok ({len(keys)} key(s))")
     else:
         legacy = ROOT / "deployments" / "devnet.json"
         if legacy.is_file():

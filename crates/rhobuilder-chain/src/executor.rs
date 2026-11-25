@@ -301,7 +301,13 @@ impl<'a> Executor<'a> {
                 &self.config.op_cache.join("verify"),
             )
             .await?;
-            if plan.required_keys.iter().all(|key| found.contains_key(key)) {
+            let missing: Vec<String> = plan
+                .required_keys
+                .iter()
+                .filter(|key| !found.contains_key(*key))
+                .cloned()
+                .collect();
+            if missing.is_empty() {
                 report.status = "adopted".to_string();
                 report.steps = state.steps.values().cloned().collect();
                 report.verified = true;
@@ -309,6 +315,15 @@ impl<'a> Executor<'a> {
                 self.save_state(plan, &state)?;
                 return Ok(report);
             }
+            state.status = "partial".to_string();
+            self.save_state(plan, &state)?;
+            return Err(ExecutorError::PartialRoot {
+                app: plan.app.clone(),
+                detail: format!(
+                    "root {root} is present but required keys {missing:?} do not resolve; \
+                     stop and reconcile instead of redeploying components"
+                ),
+            });
         }
 
         for step in &plan.steps {
