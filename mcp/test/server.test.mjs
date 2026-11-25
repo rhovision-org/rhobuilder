@@ -50,6 +50,8 @@ test('tools/list exposes the read-only surface', async () => {
     'rhobuilder_design_check',
     'rhobuilder_scaffold_plan',
     'rhobuilder_chain_probe',
+    'rhobuilder_deploy_plan',
+    'rhobuilder_check',
     'rhobuilder_formal_check',
   ])
   assert.equal(names.length, TOOLS.length)

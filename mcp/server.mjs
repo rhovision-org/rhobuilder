@@ -98,6 +98,34 @@ export const TOOLS = [
     args: (args) => ({ action: 'probe', ...args }),
   },
   {
+    name: 'rhobuilder_deploy_plan',
+    description:
+      'Read-only deploy plan for a generated project. It never signs and refuses missing dependencies or identity mismatch.',
+    inputSchema: schema(
+      {
+        project: { type: 'string' },
+        network: { type: 'string', enum: ['devnet', 'testnet', 'mainnet'] },
+      },
+      ['project', 'network'],
+    ),
+    tool: 'plan',
+    args: (args) => ({ project: args.project, network: args.network }),
+  },
+  {
+    name: 'rhobuilder_check',
+    description:
+      'Run the generated project gates through its Makefile: static, formal or full.',
+    inputSchema: schema(
+      {
+        project: { type: 'string' },
+        profile: { type: 'string', enum: ['static', 'formal', 'full'] },
+      },
+      ['project'],
+    ),
+    tool: 'check',
+    args: (args) => ({ project: args.project, profile: args.profile ?? 'static' }),
+  },
+  {
     name: 'rhobuilder_formal_check',
     description: 'Verify the vendored RhoApp tree hash in a project.',
     inputSchema: schema({ project: { type: 'string' } }, ['project']),

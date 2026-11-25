@@ -76,6 +76,7 @@ jobs:
           cargo run -q -p rhobuilder-cli -- new /tmp/rhobuilder-full \
             --design fixtures/designs/booking.json --template full --apply --force
           make -C /tmp/rhobuilder-full client-check
+          npm --prefix /tmp/rhobuilder-full/web audit --audit-level=high
 
   docs:
     runs-on: ubuntu-latest

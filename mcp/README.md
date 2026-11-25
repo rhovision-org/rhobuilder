@@ -17,4 +17,6 @@ Lanes supported:
 - `2026-07-28`: handshake-free `server/discover`, per-request
   `_meta.io.modelcontextprotocol/protocolVersion`, `resultType` on results.
 
-No tool writes a deploy or touches a key. Signed deploy execution is CLI-only.
+Tools: registry list/get/graph/drift, design validate, scaffold plan, chain probe, deploy
+plan, project check and formal check. No tool writes a deploy or touches a key. Signed
+deploy execution is CLI-only.
