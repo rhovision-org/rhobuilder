@@ -200,6 +200,11 @@ enum BaselineCommand {
         deep: bool,
         #[arg(long)]
         keys: Option<PathBuf>,
+        /// Required for a deep verification on a live network.
+        #[arg(long)]
+        allow_live: bool,
+        #[arg(long)]
+        confirm: Option<String>,
     },
     /// Execute (or dry-run) the vendored baseline in dependency order.
     Run {
@@ -387,7 +392,20 @@ async fn main() -> ExitCode {
                 network,
                 deep,
                 keys,
-            } => baseline_verify(cli.json, &cli.registry, &network, deep, keys.as_deref()).await,
+                allow_live,
+                confirm,
+            } => {
+                baseline_verify(
+                    cli.json,
+                    &cli.registry,
+                    &network,
+                    deep,
+                    keys.as_deref(),
+                    allow_live,
+                    confirm.as_deref(),
+                )
+                .await
+            }
             BaselineCommand::Run {
                 network,
                 keys,
@@ -1270,17 +1288,41 @@ async fn baseline_run(
     ExitCode::SUCCESS
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn baseline_verify(
     json: bool,
     registry_path: &Path,
     network: &str,
     deep: bool,
     keys_path: Option<&Path>,
+    allow_live: bool,
+    confirm: Option<&str>,
 ) -> ExitCode {
     let (profile, observed, checks) = match probe_checked(json, registry_path, network).await {
         Ok(value) => value,
         Err(code) => return code,
     };
+    if deep && network != "devnet" {
+        if !allow_live {
+            return fail(
+                json,
+                "LiveExecutionGated",
+                None,
+                "testnet deep verification signs Root reads and needs --allow-live",
+                5,
+            );
+        }
+        let expected = confirm_token(&profile, &observed, None);
+        if confirm != Some(expected.as_str()) {
+            return fail(
+                json,
+                "ConfirmationMismatch",
+                Some("confirm"),
+                &format!("pass --confirm '{expected}'"),
+                5,
+            );
+        }
+    }
     let apps = app_list(None);
     let client = if deep {
         let Some(keys_path) = keys_path else {
