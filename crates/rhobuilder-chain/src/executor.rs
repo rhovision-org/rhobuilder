@@ -639,7 +639,7 @@ fn now_seconds() -> u64 {
 fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    format!("{:x}", hasher.finalize())
+    rhobuilder_core::hex(&hasher.finalize())
 }
 
 fn admin_literal(keys: &DevnetKeys, names: &[&str; 3]) -> Result<String, ExecutorError> {

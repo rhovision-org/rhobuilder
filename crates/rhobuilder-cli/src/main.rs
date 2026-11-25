@@ -619,7 +619,7 @@ fn confirm_token(
 fn digest_text(text: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
-    format!("{:x}", hasher.finalize())
+    rhobuilder_core::hex(&hasher.finalize())
 }
 
 fn digest_json(value: &Value) -> String {

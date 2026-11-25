@@ -107,7 +107,7 @@ pub fn assert_safe_for(path: &Path, network: &str) -> Result<(), KeystoreError> 
     let keys = load(path)?;
     for (name, key) in &keys.keys {
         let digest = Sha256::digest(key.secret.to_ascii_lowercase().as_bytes());
-        if format!("{digest:x}") == PUBLIC_DEVNET_SECRET_SHA256 {
+        if rhobuilder_core::hex(&digest) == PUBLIC_DEVNET_SECRET_SHA256 {
             return Err(KeystoreError::Unsafe(format!(
                 "{name} uses the published devnet deployer secret"
             )));
