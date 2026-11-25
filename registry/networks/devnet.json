@@ -1,0 +1,17 @@
+{
+  "schema": "rhobuilder.network/v1",
+  "network": "devnet",
+  "chain": "rholo",
+  "networkId": null,
+  "shardId": "/root",
+  "genesisBlockHash": null,
+  "endpoint": "http://localhost:40403",
+  "status": "local",
+  "deploy": "allowed",
+  "faucet": null,
+  "phlo": {
+    "price": 1,
+    "limit": 1000000
+  },
+  "roots": {}
+}

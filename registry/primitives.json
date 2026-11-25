@@ -1,0 +1,309 @@
+{
+  "schema": "rhobuilder.registry/v1",
+  "generatedAt": "2026-11-25",
+  "pins": {
+    "r-cash": "49b441dea4f5561992387ed670ab263fcd5dd164",
+    "r-sure": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+    "r-gen": {
+      "r-print": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "r-sure": "c0ae67d4a493800ce1f8787800f725d9f768f6b5"
+    },
+    "r-share": "TBD-review-required",
+    "r-print": "TBD-review-required",
+    "r-bridge": "TBD-review-required",
+    "rholo": "841cb842876369deaa63e3b3e26c20d60e6c74c6"
+  },
+  "primitives": [
+    {
+      "id": "rcash.account-factory",
+      "owner": "r-cash",
+      "kind": "accounts",
+      "component": "component:account-factory",
+      "state": null,
+      "arms": ["getOrCreate"],
+      "source": "contracts/src/core/AccountFactory.rho",
+      "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": {
+        "devnet": { "verified": "unverified" },
+        "testnet": {
+          "verified": "candidate",
+          "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo",
+          "uri": "rho:id:d9qpjj4cdu6j5m5gj3xh9amjyjki9cgkshor5xobbhijieah1tky"
+        }
+      }
+    },
+    {
+      "id": "rcash.transfer-book",
+      "owner": "r-cash",
+      "kind": "payments",
+      "component": "component:transfer-book",
+      "state": "transferBookState",
+      "arms": ["transferNow", "bookAmount", "claim", "refund"],
+      "source": "contracts/src/deploy/v3/40_transfer.rho",
+      "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": {
+        "devnet": { "verified": "unverified" },
+        "testnet": { "verified": "candidate", "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo" }
+      }
+    },
+    {
+      "id": "rcash.asset-resolver",
+      "owner": "r-cash",
+      "kind": "accounts",
+      "component": "component:asset-resolver",
+      "state": null,
+      "arms": ["asset"],
+      "source": "contracts/src/deploy/v3/14_asset_resolver.rho",
+      "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": {
+        "devnet": { "verified": "unverified" },
+        "testnet": { "verified": "candidate" }
+      }
+    },
+    {
+      "id": "rsure.policy",
+      "owner": "r-sure",
+      "kind": "escrow",
+      "component": "component:policy-factory",
+      "state": "policyState",
+      "arms": ["create", "openClaim", "settleClaim", "distribute", "expire", "info"],
+      "source": "contracts/src/deploy/17_policy.rho",
+      "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rsure.slip",
+      "owner": "r-sure",
+      "kind": "escrow",
+      "component": "component:slip-factory",
+      "state": "slipState",
+      "arms": ["fundPremium", "bind", "expire", "info"],
+      "source": "contracts/src/deploy/13_slip.rho",
+      "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rsure.distribution",
+      "owner": "r-sure",
+      "kind": "escrow",
+      "component": "component:distribution-factory",
+      "state": "distState",
+      "arms": ["create", "run", "paid", "plan", "info"],
+      "source": "contracts/src/deploy/15_distribution.rho",
+      "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rsure.claim",
+      "owner": "r-sure",
+      "kind": "insurance-claim",
+      "component": "component:claim-factory",
+      "state": "claimState",
+      "arms": ["create", "classify", "assess", "agree", "dispute", "settle", "info"],
+      "source": "contracts/src/deploy/18_claim.rho",
+      "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rgen.claim",
+      "owner": "r-gen",
+      "kind": "knowledge-claim",
+      "component": "component:claim-factory",
+      "state": "claimState",
+      "arms": ["create", "validate", "get"],
+      "source": "contracts/src/deploy/20_claim.rho",
+      "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rgen.kasset",
+      "owner": "r-gen",
+      "kind": "provenance",
+      "component": null,
+      "state": null,
+      "arms": ["get", "nest", "openDispute", "applyDecision"],
+      "source": "contracts/src/lib/KAsset.rho",
+      "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "note": "minted only by Claim.validate; not a public factory",
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rgen.provenance",
+      "owner": "r-gen",
+      "kind": "provenance",
+      "component": "component:provenance-factory",
+      "state": "pState",
+      "arms": ["createBound", "get", "anchors", "anchor", "verify"],
+      "source": "contracts/src/deploy/40_provenance.rho",
+      "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rgen.identity-directory",
+      "owner": "r-gen",
+      "kind": "identity",
+      "component": "component:identity-directory",
+      "state": "identityState",
+      "arms": ["get"],
+      "source": "contracts/src/deploy/10_identity.rho",
+      "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rshare.booking",
+      "owner": "r-share",
+      "kind": "booking",
+      "component": "component:booking-factory",
+      "state": "bookingState",
+      "arms": ["create", "hold", "confirm", "settle", "refund"],
+      "source": "contracts/src/deploy/22_booking_contract.rho",
+      "pinnedCommit": "TBD-review-required",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rshare.listing",
+      "owner": "r-share",
+      "kind": "booking",
+      "component": "component:listing-contract-factory",
+      "state": "listingState",
+      "arms": ["create", "acquire", "release", "info"],
+      "source": "contracts/src/deploy/14_listing_contract.rho",
+      "pinnedCommit": "TBD-review-required",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rprint.publication",
+      "owner": "r-print",
+      "kind": "publication",
+      "component": "component:publication-factory",
+      "state": "publicationState",
+      "arms": ["create", "addMember", "setRole", "pause", "info"],
+      "source": "contracts/src/deploy/10_publication.rho",
+      "pinnedCommit": "TBD-review-required",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rprint.commission-escrow",
+      "owner": "r-print",
+      "kind": "escrow",
+      "component": "component:commission-escrow-factory",
+      "state": "commissionEscrowState",
+      "arms": ["createFunded", "release", "cancel", "expire", "resolveDispute"],
+      "source": "contracts/src/deploy/21_commission_escrow.rho",
+      "pinnedCommit": "TBD-review-required",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "note": "r-print's baseline escrow; r-sure remains the open-insurance primitive",
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    },
+    {
+      "id": "rbridge.bridge",
+      "owner": "r-bridge",
+      "kind": "bridge",
+      "component": null,
+      "state": "bridgeLedger",
+      "arms": ["bridgeMintCore", "bridgeFinishBurn", "balanceOf", "feeOf"],
+      "source": "contracts/rholo/src/deploy/00_bridge.rho",
+      "pinnedCommit": "TBD-review-required",
+      "status": "tested",
+      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+    }
+  ],
+  "vertices": [
+    { "id": "account", "owner": "r-cash", "kind": "record" },
+    { "id": "purse", "owner": "r-cash", "kind": "capability" },
+    { "id": "policy", "owner": "r-sure", "kind": "cell" },
+    { "id": "slip", "owner": "r-sure", "kind": "cell" },
+    { "id": "rgen_claim", "owner": "r-gen", "kind": "cell" },
+    { "id": "kasset", "owner": "r-gen", "kind": "cell" },
+    { "id": "provenance", "owner": "r-gen", "kind": "cell" },
+    { "id": "listing", "owner": "r-share", "kind": "cell" },
+    { "id": "booking", "owner": "r-share", "kind": "cell" },
+    { "id": "publication", "owner": "r-print", "kind": "cell" },
+    { "id": "bridge", "owner": "r-bridge", "kind": "cell" }
+  ],
+  "edges": [
+    {
+      "id": "booking-pays-account",
+      "verb": "pays",
+      "from": "booking",
+      "to": "account",
+      "kind": "call",
+      "arms": ["Payments.ensureAccount", "Payments.depositFacet"],
+      "source": "RShare/contracts/src/deploy/40_payments.rho",
+      "status": "implemented"
+    },
+    {
+      "id": "commission-funds-escrow",
+      "verb": "funds",
+      "from": "publication",
+      "to": "purse",
+      "kind": "call",
+      "arms": ["CommissionEscrowFactory.createFunded"],
+      "source": "RPrint/contracts/src/deploy/21_commission_escrow.rho",
+      "status": "implemented"
+    },
+    {
+      "id": "commission-covers-policy",
+      "verb": "covers",
+      "from": "publication",
+      "to": "policy",
+      "kind": "call",
+      "arms": ["CommissionProposal.attachCover", "RsureAdapter.policy"],
+      "source": "RPrint/contracts/src/deploy/06_rsure.rho",
+      "status": "implemented",
+      "optional": true
+    },
+    {
+      "id": "article-anchors-provenance",
+      "verb": "anchors",
+      "from": "publication",
+      "to": "provenance",
+      "kind": "call",
+      "arms": ["Article.attachKnowledge", "RgenAdapter.verify"],
+      "source": "RPrint/contracts/src/deploy/05_rgen.rho",
+      "status": "implemented",
+      "optional": true
+    },
+    {
+      "id": "policy-settles-account",
+      "verb": "settles",
+      "from": "policy",
+      "to": "account",
+      "kind": "call",
+      "arms": ["Policy.settleClaim", "Payments.ensureAccount"],
+      "source": "RSure/contracts/src/deploy/17_policy.rho",
+      "status": "implemented"
+    }
+  ],
+  "invariants": []
+}

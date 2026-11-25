@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rhovision-org/rhobuilder/registry/schema.json",
+  "title": "rhobuilder primitive registry",
+  "type": "object",
+  "required": ["schema", "primitives"],
+  "properties": {
+    "schema": { "const": "rhobuilder.registry/v1" },
+    "generatedAt": { "type": "string" },
+    "pins": { "type": "object" },
+    "primitives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "owner", "kind", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "owner": { "type": "string" },
+          "kind": { "type": "string" },
+          "component": { "type": ["string", "null"] },
+          "state": { "type": ["string", "null"] },
+          "arms": { "type": "array", "items": { "type": "string" } },
+          "source": { "type": "string" },
+          "pinnedCommit": { "type": "string" },
+          "status": {
+            "enum": ["scaffold", "implemented", "tested", "deployed", "unverified"]
+          },
+          "networks": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "vertices": { "type": "array" },
+    "edges": { "type": "array" },
+    "invariants": { "type": "array" }
+  },
+  "additionalProperties": true
+}

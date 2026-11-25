@@ -1,0 +1,66 @@
+# Canonical skill metadata. `tools/export_skills.py` renders these into DSH and Claude
+# Code layouts. Descriptions are trigger conditions, not marketing: the catalog is
+# model-visible and costs prompt space, so keep the set curated.
+
+[[skill]]
+name = "rhobuilder-rholang"
+description = "Write or review Rholang contracts: names/processes, linear state cells, factories, registry lookup, bundles, the 64/56 KiB budgets and the platform pitfalls."
+path = "skills/rhobuilder-rholang/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-rholo-platform"
+description = "Operate rholo: networks, genesis/system contracts, deploy and finality ladder, capabilities, faucet, registry lookup and the no-indexer limit."
+path = "skills/rhobuilder-rholo-platform/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-rho-calculus"
+description = "Reason from the reflective higher-order rho-calculus: names, processes, reflection, unforgeables, locality, linearity and why capabilities beat shared state."
+path = "skills/rhobuilder-rho-calculus/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-coc-types"
+description = "Use the rho-to-Calculus-of-Constructions reading correctly: sorts, closedness, linear patterns, totality, and what CoC does and does not buy Rholang."
+path = "skills/rhobuilder-coc-types/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-lean4"
+description = "Build the shallow Lean 4 model for a dApp: Basic/Model/Invariants/Emit/Audit, flow obligations, no Mathlib or axioms, proved-model status."
+path = "skills/rhobuilder-lean4/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-testing"
+description = "Design and run the behavioural harness: suites, refusal and idempotency tests, conservation, concurrency, pass/fail/not-run, devnet and testnet preflight."
+path = "skills/rhobuilder-testing/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-deploy"
+description = "Plan and execute a deploy: signing, shard and valid-after anchoring, finality ladder, manifests, network identity, faucet, key handling and no-retry rules."
+path = "skills/rhobuilder-deploy/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-dapp-design"
+description = "Turn an idea into a design.json: unique value, actors, capabilities, resources, lifecycle, conservation, concurrency, remedies and acceptance tests."
+path = "skills/rhobuilder-dapp-design/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-primitive-reuse"
+description = "Map a design onto the existing primitive graph, tag every component reuse/extend/new, and refuse duplicate payments, escrow, claims, provenance, booking or bridge primitives."
+path = "skills/rhobuilder-primitive-reuse/SKILL.md"
+
+[[skill]]
+name = "rhobuilder-standards"
+description = "Apply the rhovision repo standard: contracts/spec/harness/crates/web/docs/audit layout, Makefile targets, graph and flow manifests, status labels, pins and secrets."
+path = "skills/rhobuilder-standards/SKILL.md"
+
+# Curated subsets. `--skills curated` exports the build loop plus the platform rules;
+# `--skills full` exports every entry above.
+[curated]
+names = [
+  "rhobuilder-rholang",
+  "rhobuilder-rholo-platform",
+  "rhobuilder-dapp-design",
+  "rhobuilder-primitive-reuse",
+  "rhobuilder-testing",
+  "rhobuilder-deploy",
+  "rhobuilder-standards",
+]

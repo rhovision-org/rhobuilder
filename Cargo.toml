@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/rhobuilder-core",
+  "crates/rhobuilder-registry",
+  "crates/rhobuilder-chain",
+  "crates/rhobuilder-formal",
+  "crates/rhobuilder-gates",
+  "crates/rhobuilder-cli",
+]
+default-members = [
+  "crates/rhobuilder-core",
+  "crates/rhobuilder-registry",
+  "crates/rhobuilder-chain",
+  "crates/rhobuilder-formal",
+  "crates/rhobuilder-gates",
+  "crates/rhobuilder-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+rust-version = "1.95"
+repository = "https://github.com/rhovision-org/rhobuilder"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[workspace.dependencies]
+rhobuilder-core = { path = "crates/rhobuilder-core" }
+rhobuilder-registry = { path = "crates/rhobuilder-registry" }
+rhobuilder-chain = { path = "crates/rhobuilder-chain" }
+rhobuilder-formal = { path = "crates/rhobuilder-formal" }
+rhobuilder-gates = { path = "crates/rhobuilder-gates" }
+
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

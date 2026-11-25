@@ -1,0 +1,34 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Rust build output
+/target/
+
+# mdBook build output
+/docs/book/
+
+# DSH local state, generated overlays and exported skills
+/.dsh/
+/.dsh-home/
+/.claude/skills/
+
+# Pinned sibling checkouts fetched by the registry drift job
+/.registry-cache/
+
+# Local network state and keys
+/.devnet/
+/.testnet/
+/deployments/*.json
+!deployments/.gitkeep
+
+# Node
+/node_modules/
+/web/node_modules/
+/web/dist/
+
+# Lean build output
+/spec/lean/.lake/
+/formal/lean/.lake/

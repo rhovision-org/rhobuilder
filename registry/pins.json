@@ -1,0 +1,62 @@
+{
+  "schema": "rhobuilder.pins/v1",
+  "rust": {
+    "toolchain": "1.95.0"
+  },
+  "node": {
+    "repo": "rchain-community/rchain-rust",
+    "rev": "e2d073dcd02f1e560ccb84749937138a1e184b0b"
+  },
+  "crypto": {
+    "repo": "rhovision-org/rholo",
+    "rev": "841cb842876369deaa63e3b3e26c20d60e6c74c6"
+  },
+  "siblings": {
+    "r-cash": {
+      "repo": "rhovision-org/r-cash",
+      "rev": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "authoritative": true
+    },
+    "r-gen": {
+      "repo": "rhovision-org/r-gen",
+      "consumerPins": {
+        "r-print": "bcc840c25e334048bef390823a21aaf7e209d15b",
+        "r-sure": "c0ae67d4a493800ce1f8787800f725d9f768f6b5"
+      },
+      "authoritative": false,
+      "note": "per-consumer pins; do not collapse to one rev"
+    },
+    "r-sure": {
+      "repo": "rhovision-org/r-sure",
+      "rev": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "consumer": "r-print",
+      "authoritative": true
+    },
+    "r-share": {
+      "repo": "rhovision-org/r-share",
+      "rev": "TBD-review-required",
+      "localHead": "7114acbabba31d3575c7c858c74f393755c91404",
+      "authoritative": false
+    },
+    "r-print": {
+      "repo": "rhovision-org/r-print",
+      "rev": "TBD-review-required",
+      "localHead": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+      "authoritative": false
+    },
+    "r-bridge": {
+      "repo": "rhovision-org/r-bridge",
+      "rev": "TBD-review-required",
+      "localHead": "f90fd1de4826bab69edf13a574496bbaeee564ab",
+      "authoritative": false
+    }
+  },
+  "dsh": {
+    "tested": "0.2.2-rc.5",
+    "nodeFloor": "22.19",
+    "next": "0.2.3-alpha.2 requires Node >=24.22.3"
+  },
+  "lean": {
+    "toolchain": "leanprover/lean4:v4.12.0"
+  }
+}

@@ -1,0 +1,21 @@
+[package]
+name = "rhobuilder-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "rhobuilder"
+path = "src/main.rs"
+
+[dependencies]
+rhobuilder-core.workspace = true
+rhobuilder-chain.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

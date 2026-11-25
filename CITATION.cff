@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use rhobuilder, cite this repository."
+title: rhobuilder
+abstract: "A DeepSeek Harness app builder for rhovision dApps on the rholo blockchain."
+authors:
+  - family-names: Mockridge
+    given-names: Patrick
+    website: "https://github.com/PatrickMockridge"
+repository-code: "https://github.com/rhovision-org/rhobuilder"
+url: "https://github.com/rhovision-org/rhobuilder"
+license: AGPL-3.0-only

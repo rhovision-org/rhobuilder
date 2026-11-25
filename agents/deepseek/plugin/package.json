@@ -1,0 +1,11 @@
+{
+  "name": "rhobuilder-dsh-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0"
+  }
+}

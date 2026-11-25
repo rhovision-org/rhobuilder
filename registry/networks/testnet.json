@@ -1,0 +1,50 @@
+{
+  "schema": "rhobuilder.network/v1",
+  "network": "testnet",
+  "chain": "rholo",
+  "networkId": "testnet-133b1d307b175012",
+  "shardId": "/testnet",
+  "genesisBlockHash": "133b1d307b1750129cf0cfb69c4c8f950da21c4e8db2a6a076464d0ccfd98d44",
+  "endpoint": "https://testnet.rhobot.net",
+  "status": "live",
+  "deploy": "gated",
+  "faucet": {
+    "path": "/api/faucet",
+    "amount": 30000000
+  },
+  "phlo": {
+    "price": 1,
+    "limit": 8000000
+  },
+  "observed": {
+    "nodeBuild": "0a1e02362a7c34e474e068ffd47469c8d4be707a",
+    "height": 1248,
+    "networkId": "testnet-133b1d307b175012",
+    "genesisBlockHash": "133b1d307b1750129cf0cfb69c4c8f950da21c4e8db2a6a076464d0ccfd98d44"
+  },
+  "roots": {
+    "r-cash": {
+      "status": "candidate",
+      "committedManifest": "rho:id:7srrj8is8zcz6de4p1oqsi87sj1fod7x4r5dzz8pf1fnnsy176co",
+      "uncommittedCandidate": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo",
+      "accountFactoryCandidate": "rho:id:d9qpjj4cdu6j5m5gj3xh9amjyjki9cgkshor5xobbhijieah1tky",
+      "verified": false
+    },
+    "r-gen": {
+      "status": "missing",
+      "verified": false
+    },
+    "r-sure": {
+      "status": "missing",
+      "verified": false
+    },
+    "r-print": {
+      "status": "missing",
+      "verified": false
+    },
+    "r-share": {
+      "status": "missing",
+      "verified": false
+    }
+  }
+}

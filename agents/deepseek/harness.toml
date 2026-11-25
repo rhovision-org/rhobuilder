@@ -1,0 +1,45 @@
+# Values read by tools/launch_dsh.py. This is not a DSH config file: the launcher renders
+# a mode-specific --patch overlay from these values and the running checkout.
+
+[harness]
+tested_dsh = "0.2.2-rc.5"
+dsh_version = "0.2.2-rc.5"
+tested_node = "22.19"
+default_model = "deepseek-v4-flash"
+default_provider = "deepseek-official"
+max_tasks = 64
+
+[plugin]
+timeout_ms = 120000
+max_output_bytes = 4194304
+
+[mcp]
+tool_call_timeout_ms = 60000
+startup_timeout_ms = 15000
+close_timeout_ms = 5000
+
+[skills]
+curated = [
+  "rhobuilder-rholang",
+  "rhobuilder-rholo-platform",
+  "rhobuilder-dapp-design",
+  "rhobuilder-primitive-reuse",
+  "rhobuilder-testing",
+  "rhobuilder-deploy",
+  "rhobuilder-standards",
+]
+
+[presets.architect]
+id = "rhobuilder-architect"
+order = 10
+prompt = "prompts/architect.md"
+
+[presets.reviewer]
+id = "rhobuilder-reviewer"
+order = 11
+prompt = "prompts/reviewer.md"
+
+[presets.prover]
+id = "rhobuilder-prover"
+order = 12
+prompt = "prompts/prover.md"

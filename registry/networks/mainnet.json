@@ -1,0 +1,14 @@
+{
+  "schema": "rhobuilder.network/v1",
+  "network": "mainnet",
+  "chain": "rholo",
+  "networkId": null,
+  "shardId": "/root",
+  "genesisBlockHash": null,
+  "endpoint": null,
+  "status": "unavailable",
+  "deploy": "refused",
+  "faucet": null,
+  "refuseReason": "no live rhovision rholo mainnet exists",
+  "roots": {}
+}
