@@ -17,7 +17,7 @@ nine behavioural suites. No signed public-testnet deploy has been executed.
 | Repo + DSH plugin/skills/launcher | implemented; plugin tools map to real CLI commands; no live model session |
 | Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
 | Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` is hand-authored; other designs get generic root/resource/adapter contracts and an install manifest; canonical gates are vendored and hash-checked |
-| Lean `RhoApp` + obligations | shared RhoApp, hash check and per-arm obligation gate implemented; app model `owed` |
+| Lean `RhoApp` + obligations | shared RhoApp, hash check and per-arm obligation gate implemented; `bookable-service` has a shallow `proved-model`; generic scaffolds remain `owed` |
 | Devnet end-to-end | P5 measured: five roots verified, app root verified, nine suites pass |
 | Public-testnet baseline | P6 code-complete: plan/dry-run/executor/keys/Root verification; live gated; r-cash account-factory blocker |
 | MCP server | read-only/plan server with both protocol lanes |

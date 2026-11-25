@@ -36,6 +36,7 @@ def main() -> int:
     args = parser.parse_args()
     violations: list[str] = []
     obligations: list[dict] = []
+    named: list[tuple[str, str]] = []
     flows_path = ROOT / "spec" / "flows" / "core.yaml"
     if not flows_path.is_file():
         print(f"obligations: missing {flows_path}")
@@ -59,6 +60,8 @@ def main() -> int:
                 violations.append(f"{component_id}: strict mode rejects owed")
         elif not theorem:
             violations.append(f"{component_id}: status {status} has no named theorem")
+        else:
+            named.append((component_id, theorem))
         obligations.append(
             {
                 "component": component_id,
@@ -68,16 +71,24 @@ def main() -> int:
             }
         )
     lean_files = 0
+    lean_text = ""
     lean_root = ROOT / "spec" / "lean"
     if lean_root.is_dir():
         for path in lean_root.rglob("*.lean"):
             lean_files += 1
-            found = words(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            lean_text += text + "\n"
+            found = words(text)
             for token in FORBIDDEN:
                 if token in found:
                     violations.append(
                         f"{path.relative_to(ROOT)}: forbidden Lean token {token}"
                     )
+    for component_id, theorem in named:
+        if f"theorem {theorem}" not in lean_text and f"lemma {theorem}" not in lean_text:
+            violations.append(
+                f"{component_id}: named theorem {theorem} is not in spec/lean"
+            )
     print(
         f"obligations: {'ok' if not violations else 'failed'} "
         f"({len(obligations)} component(s), {lean_files} lean file(s), strict={args.strict})"

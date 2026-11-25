@@ -293,7 +293,8 @@ fn generated_files(
                 "adapter": component.adapter,
                 "kind": component.kind,
                 "arms": component.arms,
-                "lean_status": "owed"
+                "lean_status": component.lean_status.as_deref().unwrap_or("owed"),
+                "lean": component.lean.as_deref().unwrap_or("")
             })
         })
         .collect();

@@ -388,6 +388,8 @@ mod tests {
                     no_registered_alternative: vec![],
                     arms: vec![],
                     invariants: vec![],
+                    lean_status: None,
+                    lean: None,
                     override_: None,
                 },
                 Component {
@@ -402,6 +404,8 @@ mod tests {
                     no_registered_alternative: vec!["rcash.account-factory".into()],
                     arms: vec!["record".into()],
                     invariants: vec![],
+                    lean_status: None,
+                    lean: None,
                     override_: None,
                 },
             ],
