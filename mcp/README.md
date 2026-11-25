@@ -18,5 +18,5 @@ Lanes supported:
   `_meta.io.modelcontextprotocol/protocolVersion`, `resultType` on results.
 
 Tools: registry list/get/graph/drift, design validate, scaffold plan, chain probe, deploy
-plan, project check and formal check. No tool writes a deploy or touches a key. Signed
-deploy execution is CLI-only.
+plan, baseline plan/verify, project check and formal check. No tool writes a deploy or
+touches a key. Signed deploy execution and deep Root verification are CLI-only.

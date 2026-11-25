@@ -83,6 +83,12 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       argv = [...base, 'deploy', 'plan', '--project', project, '--network', network]
       break
     }
+    case 'baseline': {
+      const action = requireEnum(args, 'action', ['plan', 'verify'])
+      const network = requireString(args, 'network')
+      argv = [...base, 'baseline', action, '--network', network]
+      break
+    }
     case 'formal': {
       const action = requireEnum(args, 'action', ['check', 'sync'])
       const project = requireString(args, 'project')

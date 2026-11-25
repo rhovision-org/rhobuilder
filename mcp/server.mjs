@@ -112,6 +112,28 @@ export const TOOLS = [
     args: (args) => ({ project: args.project, network: args.network }),
   },
   {
+    name: 'rhobuilder_baseline_plan',
+    description:
+      'Read-only all-five baseline plan: identity, rendered vendored steps, dependency order and plan digest. Never signs.',
+    inputSchema: schema(
+      { network: { type: 'string', enum: ['devnet', 'testnet', 'mainnet'] } },
+      ['network'],
+    ),
+    tool: 'baseline',
+    args: (args) => ({ action: 'plan', network: args.network }),
+  },
+  {
+    name: 'rhobuilder_baseline_verify',
+    description:
+      'Read-only identity and catalog-claim verification for a network. Deep signed verification is not exposed here.',
+    inputSchema: schema(
+      { network: { type: 'string', enum: ['devnet', 'testnet', 'mainnet'] } },
+      ['network'],
+    ),
+    tool: 'baseline',
+    args: (args) => ({ action: 'verify', network: args.network }),
+  },
+  {
     name: 'rhobuilder_check',
     description:
       'Run the generated project gates through its Makefile: static, formal or full.',
