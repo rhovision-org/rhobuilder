@@ -7,4 +7,5 @@
 - [Scaffolding](scaffold.md)
 - [Lean and RhoApp](formal.md)
 - [MCP server](mcp.md)
+- [Devnet smoke](devnet.md)
 - [Registry and reuse](registry.md)
