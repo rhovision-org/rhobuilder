@@ -62,6 +62,6 @@ records `pass`/`fail`/`not_run`.
 
 ## Still owed
 
-The full sibling suite set (all 33 r-share suites and the app-specific Lean model) is not
-re-run here. The app's per-app Lean obligations remain `owed`; `formal check --strict`
-fails on them by design.
+The full sibling suite set (all 33 r-share suites) is not re-run here. The
+`bookable-service` model is a shallow `proved-model` and passes `formal check --strict`;
+generic scaffolds keep their arms `owed`, so strict mode fails on them by design.

@@ -51,6 +51,8 @@ test('tools/list exposes the read-only surface', async () => {
     'rhobuilder_scaffold_plan',
     'rhobuilder_chain_probe',
     'rhobuilder_deploy_plan',
+    'rhobuilder_baseline_plan',
+    'rhobuilder_baseline_verify',
     'rhobuilder_check',
     'rhobuilder_formal_check',
   ])

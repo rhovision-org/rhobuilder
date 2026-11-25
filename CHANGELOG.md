@@ -10,7 +10,12 @@
   roots, a verified generated app, and nine passing behavioural suites.
 - Add the `bookable-service` worked example with real dispute/panel, r-cash, r-share and
   r-sure adapters.
+- Add generic root/resource/`new`-cell/adapter patterns and a `.rhobuilder-contracts.json`
+  install manifest for designs without a worked example; add the `payments-ledger`
+  fixture and deploy it on devnet.
 - Add the formal per-arm obligation gate and `formal check --strict`.
+- Add the shallow `bookable-service` dispute model (`voteOnce`, provider exclusion and
+  settlement conservation); the example passes `formal check --strict`.
 - Add canonical `gates/` checkers with `GATES.json` hashes, `tools/gate_sync.py`, and
   generated-project `check_gates.py`; make `rhobuilder-gates` the real check orchestrator.
 - Align the DSH plugin with the real CLI: `check`, `deploy plan`, `chain status`,
