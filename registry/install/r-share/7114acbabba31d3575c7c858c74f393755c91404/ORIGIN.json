@@ -1,0 +1,70 @@
+{
+  "schema": "rhobuilder.install-origin/v1",
+  "app": "r-share",
+  "repo": "https://github.com/rhovision-org/r-share",
+  "commit": "7114acbabba31d3575c7c858c74f393755c91404",
+  "sourceRoot": "contracts/build",
+  "license": "AGPL-3.0-only",
+  "terms": {
+    "00_root.rho": {
+      "path": "contracts/build/00_root.rho",
+      "sha256": "606df0dfbbf6f90a7e9a2c9179debacea5e09da6dc45459cdba43f4c26551b35"
+    },
+    "01_kernel.rho": {
+      "path": "contracts/build/01_kernel.rho",
+      "sha256": "1a7efcdf9c778357b361817afc0a512496f5e7020203d1cdc061c867b51ae749"
+    },
+    "02_admin.rho": {
+      "path": "contracts/build/02_admin.rho",
+      "sha256": "2e94ac215cde66eee9487397eb64fde56c72a2276c1b1652d8717a133e2555d1"
+    },
+    "40_payments.rho": {
+      "path": "contracts/build/40_payments.rho",
+      "sha256": "f353ac4ac42173f7d364183a04bf50084f49d37de5ee443a05503f1a21ad19a4"
+    },
+    "41_hold_deposit.rho": {
+      "path": "contracts/build/41_hold_deposit.rho",
+      "sha256": "9eea80f625d34a276c911ddd0fd466f5e6f0cd0bfe06131ef8d8a5edd57f78c7"
+    },
+    "03_terms.rho": {
+      "path": "contracts/build/03_terms.rho",
+      "sha256": "6866817f27d65b6475ce787752f1d692d005e4dcbb96eacf35254491f16c1f84"
+    },
+    "04_remedy.rho": {
+      "path": "contracts/build/04_remedy.rho",
+      "sha256": "f565624e3bcc5cc88d29b4ad4b5d17d75ddd50fdd364506f9d35e1e2006c2866"
+    },
+    "10_provider.rho": {
+      "path": "contracts/build/10_provider.rho",
+      "sha256": "3497c93777fe82a507e346cdffcb2b86e8ffa9448ce382ea16c15d6a4a558953"
+    },
+    "13_unit.rho": {
+      "path": "contracts/build/13_unit.rho",
+      "sha256": "f86198d5f9ed9ca86333f3da7b9114a1c707e6244e2c0f6f4756fd6b77c04958"
+    },
+    "14_listing_contract.rho": {
+      "path": "contracts/build/14_listing_contract.rho",
+      "sha256": "1e70d751fb51c8f5ac46a382576240c6bf1251faa0e33f5f102eef15a52fb107"
+    },
+    "15_bond.rho": {
+      "path": "contracts/build/15_bond.rho",
+      "sha256": "868454765ae837df907349ad532fd4dbd1944eb9db09ce9f67b7ac149528a04e"
+    },
+    "34_booking_instance.rho": {
+      "path": "contracts/build/34_booking_instance.rho",
+      "sha256": "938f76b2d692b475294e0c5e2975c1ef3c97d641947a8cd1491efc8c2bfa8cd5"
+    },
+    "22_booking_contract.rho": {
+      "path": "contracts/build/22_booking_contract.rho",
+      "sha256": "cad17d2a41da7a5473d80d8e3d008519cc1e901f4b34c95b7fd8b71dbc9c18b1"
+    },
+    "23_guest_ledger.rho": {
+      "path": "contracts/build/23_guest_ledger.rho",
+      "sha256": "1f5e28e16813581be956ef22090231b84688686ad98778d3c3759a1c831e0443"
+    },
+    "20_booking.rho": {
+      "path": "contracts/build/20_booking.rho",
+      "sha256": "20da8adb99fa263c3ac5377d2c900d5cc8a1cdf67c9fdc5205b60aaa3e469183"
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "schema": "rhobuilder.install-plan/v1",
+  "app": "r-share",
+  "repo": "https://github.com/rhovision-org/r-share",
+  "commit": "7114acbabba31d3575c7c858c74f393755c91404",
+  "sourceRoot": "contracts/build",
+  "rootKey": "component:root",
+  "resolveArity": 3,
+  "phlo": {
+    "limit": 4000000,
+    "price": 1
+  },
+  "dependencies": [
+    "r-cash"
+  ],
+  "requiredKeys": [
+    "component:root",
+    "component:clock",
+    "component:codec",
+    "component:verifier",
+    "component:admin",
+    "component:admin-guard",
+    "component:terms",
+    "component:remedy",
+    "component:provider-book",
+    "component:unit-factory",
+    "component:listing-factory",
+    "component:bond-factory",
+    "component:guest-book",
+    "component:booking-factory",
+    "component:guest-ledger-factory",
+    "component:booking-instance-factory",
+    "component:payments",
+    "component:hold-deposit"
+  ],
+  "placeholders": [
+    "__ADMINS__",
+    "__PLATFORM_OWNER__",
+    "__RCASH_ROOT_URI__",
+    "__ROOT_URI__",
+    "__THRESHOLD__"
+  ],
+  "steps": [
+    {
+      "name": "00_root",
+      "term": "00_root.rho",
+      "root": true,
+      "placeholders": [
+        "__ADMINS__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "01_kernel",
+      "term": "01_kernel.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "02_admin",
+      "term": "02_admin.rho",
+      "placeholders": [
+        "__ADMINS__",
+        "__ROOT_URI__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "40_payments",
+      "term": "40_payments.rho",
+      "placeholders": [
+        "__PLATFORM_OWNER__",
+        "__RCASH_ROOT_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "41_hold_deposit",
+      "term": "41_hold_deposit.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "03_terms",
+      "term": "03_terms.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "04_remedy",
+      "term": "04_remedy.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "10_provider",
+      "term": "10_provider.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "13_unit",
+      "term": "13_unit.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "14_listing_contract",
+      "term": "14_listing_contract.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "15_bond",
+      "term": "15_bond.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "34_booking_instance",
+      "term": "34_booking_instance.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "22_booking_contract",
+      "term": "22_booking_contract.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "23_guest_ledger",
+      "term": "23_guest_ledger.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "20_booking",
+      "term": "20_booking.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    }
+  ]
+}

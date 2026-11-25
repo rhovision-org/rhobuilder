@@ -1,0 +1,163 @@
+{
+  "schema": "rhobuilder.install-plan/v1",
+  "app": "r-cash",
+  "repo": "https://github.com/rhovision-org/r-cash",
+  "commit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+  "sourceRoot": "contracts/build/deploy/v3",
+  "rootKey": "rcash:root",
+  "resolveArity": 3,
+  "phlo": {
+    "limit": 2000000,
+    "price": 1
+  },
+  "dependencies": [],
+  "requiredKeys": [
+    "rcash:root",
+    "component:admin-guard",
+    "component:clock",
+    "component:verifier",
+    "component:codec",
+    "component:bounds",
+    "component:governor",
+    "component:amm-math",
+    "component:collateral-math",
+    "component:oracle-math",
+    "component:claim-code",
+    "component:oracle-registry",
+    "component:oracle-hub",
+    "component:stablecoin-directory",
+    "component:currency-registry",
+    "component:asset-resolver",
+    "component:transfer-book",
+    "component:account-factory"
+  ],
+  "placeholders": [
+    "__ADMIN_KEYS__",
+    "__ALLOWLIST__",
+    "__ASSET_RESOLVER_URI__",
+    "__BOOK_PARAMS__",
+    "__INSTALLER_PUB__",
+    "__ROOT_URI__"
+  ],
+  "steps": [
+    {
+      "name": "00_root",
+      "term": "00_root.rho",
+      "root": true,
+      "placeholders": [
+        "__ADMIN_KEYS__",
+        "__INSTALLER_PUB__"
+      ]
+    },
+    {
+      "name": "03_admin_guard",
+      "term": "03_admin_guard.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "01_kernel",
+      "term": "01_kernel.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "02_bounds",
+      "term": "02_bounds.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "04_governor",
+      "term": "04_governor.rho",
+      "placeholders": [
+        "__ADMIN_KEYS__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "05_amm_math",
+      "term": "05_amm_math.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "06_collateral_math",
+      "term": "06_collateral_math.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "07_oracle_math",
+      "term": "07_oracle_math.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "08_claim_code",
+      "term": "08_claim_code.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "12_oracle_registry",
+      "term": "12_oracle_registry.rho",
+      "placeholders": [
+        "__ADMIN_KEYS__",
+        "__ALLOWLIST__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "13_oracle_hub",
+      "term": "13_oracle_hub.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "32_currency_registry",
+      "term": "32_currency_registry.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "14_asset_resolver",
+      "term": "14_asset_resolver.rho",
+      "captures": [
+        {
+          "placeholder": "__ASSET_RESOLVER_URI__",
+          "from": "uris",
+          "index": 0
+        }
+      ],
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "40_transfer",
+      "term": "40_transfer.rho",
+      "placeholders": [
+        "__BOOK_PARAMS__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "09_identity",
+      "term": "09_identity.rho",
+      "placeholders": [
+        "__ASSET_RESOLVER_URI__",
+        "__ROOT_URI__"
+      ]
+    }
+  ]
+}

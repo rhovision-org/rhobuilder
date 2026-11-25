@@ -1,0 +1,70 @@
+{
+  "schema": "rhobuilder.install-origin/v1",
+  "app": "r-print",
+  "repo": "https://github.com/rhovision-org/r-print",
+  "commit": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+  "sourceRoot": "contracts/build",
+  "license": "AGPL-3.0-only",
+  "terms": {
+    "00_root.rho": {
+      "path": "contracts/build/00_root.rho",
+      "sha256": "ae3acf5c76faebe0169367c44629112cb8130f4dcecf380f6ec6e65c3da8412b"
+    },
+    "01_kernel.rho": {
+      "path": "contracts/build/01_kernel.rho",
+      "sha256": "3b4e5fcfe5f30345cbdd34b46a728c4168535b1cebfd359caf49b14520b302cf"
+    },
+    "02_admin.rho": {
+      "path": "contracts/build/02_admin.rho",
+      "sha256": "54eebb6a81fc2ae0dff43a528fda90b6fe7ad2cbb0bba1b67f519ed33e43a517"
+    },
+    "40_payments.rho": {
+      "path": "contracts/build/40_payments.rho",
+      "sha256": "cd4c75c59fc7570cb620bd0a8098ec608475062a9a3f7c137fe30d7a4ba024fa"
+    },
+    "03_terms.rho": {
+      "path": "contracts/build/03_terms.rho",
+      "sha256": "b96d2f43abd8e83ccaeff99de4904a39583f6166e98561d4c5a5c32de1c562ef"
+    },
+    "05_rgen.rho": {
+      "path": "contracts/build/05_rgen.rho",
+      "sha256": "1e797363e0c17ee985533903b15bf0a33649b4b6bd4cb36c3154a8be6479d51c"
+    },
+    "06_rsure.rho": {
+      "path": "contracts/build/06_rsure.rho",
+      "sha256": "59432936ecad7c81fd6b59594960aa5807e59497aecc93c3740394c123ea8a4d"
+    },
+    "10_publication.rho": {
+      "path": "contracts/build/10_publication.rho",
+      "sha256": "8f751666ac8397953248d91b8099650cc87fce9d52d9eaaa52e6cc412d37d1ae"
+    },
+    "11_publication_cell.rho": {
+      "path": "contracts/build/11_publication_cell.rho",
+      "sha256": "53cbbefad4a6d3ce6a67f63adb8422d1836f553bb83577c322dbc3813335c19a"
+    },
+    "20_commission.rho": {
+      "path": "contracts/build/20_commission.rho",
+      "sha256": "12e2361e38b30f9c70b2f0a7f0d60e34e0cb82809335727726236515e9be8a9f"
+    },
+    "21_commission_escrow.rho": {
+      "path": "contracts/build/21_commission_escrow.rho",
+      "sha256": "76e7bec8104f3b814e7ee86bec611eb09ea84392bcd1a3063dbb6b82da949eff"
+    },
+    "30_article.rho": {
+      "path": "contracts/build/30_article.rho",
+      "sha256": "2740fe265fb4944de619a900c97fca85aacd9315d1589f47630a731ddb30a25f"
+    },
+    "31_edition.rho": {
+      "path": "contracts/build/31_edition.rho",
+      "sha256": "5659acae4a327c26d79eb76f6cbc0d3da4d40613f0e355240c758e0aad7105db"
+    },
+    "32_coordination.rho": {
+      "path": "contracts/build/32_coordination.rho",
+      "sha256": "eeb5a3ddd8a758323860ed3ffe62afcaade0da4cca099937fd1dcb1382dfbc96"
+    },
+    "33_coordination_cell.rho": {
+      "path": "contracts/build/33_coordination_cell.rho",
+      "sha256": "28742b9d6cf693101cabc0f1e0c64243344a19b270fddfe6ac3db5d86b94988f"
+    }
+  }
+}

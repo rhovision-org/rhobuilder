@@ -1,8 +1,8 @@
-//! Network identity and read-only chain access.
+//! Network identity, read-only probes and signed install execution.
 //!
-//! P1 implements the identity probe against a registry network profile. Deploying and
-//! signing stay in the pinned `rcash-chain` crate; this crate adds only the endpoints and
-//! comparisons that crate does not expose.
+//! The identity probe is raw `reqwest` and never signs. Signed work is delegated to the
+//! pinned `rcash-sdk`/`rcash-chain` crates; this crate adds only the vendored install
+//! plan, Root verification, keys and network comparisons.
 
 use std::path::Path;
 use std::time::Duration;
@@ -10,6 +10,11 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+
+pub mod executor;
+pub mod funding;
+pub mod keystore;
+pub mod root;
 
 /// A committed network profile (`registry/networks/<network>.json`).
 #[derive(Debug, Clone, Deserialize, Serialize)]

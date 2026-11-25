@@ -1,0 +1,236 @@
+// RgenAdapter: optional read/verify surface over r-gen knowledge primitives.
+// The adapter never creates identities, claims or K-Assets; it reads them by URI so an
+// article can link a Claim, KAsset, Provenance record or credential. Placeholders:
+// __ROOT_URI__, __RGEN_ROOT_URI__.
+new
+  RgenAdapter,
+  rgenMemberCredential,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack
+in {
+  contract RgenAdapter(@"health", ret) = {
+    if ("__RGEN_ROOT_URI__".length() == 0) {
+      ret!((false, "disabled"))
+    } else {
+      new rCh, Root, kCh, iCh, pCh, cfCh in {
+        rl!(`__RGEN_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:claim-factory", *kCh) |
+          Root!("resolve", "component:credential-factory", *cfCh) |
+          Root!("resolve", "component:identity-directory", *iCh) |
+          Root!("resolve", "component:provenance-factory", *pCh) |
+          for (@k <- kCh; @cf <- cfCh; @i <- iCh; @p <- pCh) {
+            match k {
+              (true, _, _) => {
+                match cf {
+                  (true, _, _) => {
+                    match i {
+                      (true, _, _) => {
+                        match p {
+                          (true, _, _) => {
+                            ret!((true, {"claimFactory": true,
+                                         "credentialFactory": true,
+                                         "identityDirectory": true,
+                                         "provenanceFactory": true}))
+                          }
+                          _ => { ret!((false, "provenance-factory")) }
+                        }
+                      }
+                      _ => { ret!((false, "identity-directory")) }
+                    }
+                  }
+                  _ => { ret!((false, "credential-factory")) }
+                }
+              }
+              _ => { ret!((false, "claim-factory")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract RgenAdapter(@"claim", @uri, ret) = {
+    new cCh in {
+      rl!(uri, *cCh) |
+      for (Claim <- cCh) { Claim!("get", *ret) }
+    }
+  } |
+
+  contract RgenAdapter(@"kasset", @uri, ret) = {
+    new cCh in {
+      rl!(uri, *cCh) |
+      for (KAsset <- cCh) { KAsset!("get", *ret) }
+    }
+  } |
+
+  contract RgenAdapter(@"provenance", @uri, @hash, ret) = {
+    new cCh in {
+      rl!(uri, *cCh) |
+      for (Provenance <- cCh) { Provenance!("verify", hash, *ret) }
+    }
+  } |
+
+  contract RgenAdapter(@"provenanceInfo", @uri, ret) = {
+    if (uri.length() == 0) {
+      ret!((false, "uri"))
+    } else {
+      new cCh in {
+        rl!(uri, *cCh) |
+        for (Provenance <- cCh) { Provenance!("get", *ret) }
+      }
+    }
+  } |
+
+  contract RgenAdapter(@"identity", @address, ret) = {
+    if ("__RGEN_ROOT_URI__".length() == 0) {
+      ret!((false, "disabled"))
+    } else {
+      new rCh, Root, dCh, dc in {
+        rl!(`__RGEN_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:identity-directory", *dCh) |
+          for (@d <- dCh) {
+            match d {
+              (true, uri, _) => {
+                rl!(uri, *dc) |
+                for (Directory <- dc) { Directory!("lookup", address, *ret) }
+              }
+              _ => { ret!((false, "identity-directory")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract RgenAdapter(@"credential", @uri, ret) = {
+    if ("__RGEN_ROOT_URI__".length() == 0) {
+      ret!((false, "disabled"))
+    } else {
+      if (uri.length() == 0) {
+        ret!((false, "uri"))
+      } else {
+        new cCh in {
+          rl!(uri, *cCh) |
+          for (Credential <- cCh) { Credential!("get", *ret) }
+        }
+      }
+    }
+  } |
+
+  // Factory membership: the claim must be issued by the pinned r-gen claim factory,
+  // the KAsset must be the claim's kassetRef, and a supplied credential must be
+  // issued by the pinned credential factory. Provenance has no membership query in
+  // the pinned r-gen rev, so it remains a documented trust boundary.
+  contract RgenAdapter(@"membership", @kassetUri, @claimUri, @credentialUri, ret) = {
+    if ("__RGEN_ROOT_URI__".length() == 0) {
+      ret!((true, Nil))
+    } else {
+      new rCh, Root, fCh in {
+        rl!(`__RGEN_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:claim-factory", *fCh) |
+          for (@f <- fCh) {
+            match f {
+              (true, factoryUri, _) => {
+                new cCh in {
+                  rl!(factoryUri, *cCh) |
+                  for (ClaimFactory <- cCh) {
+                    new vCh in {
+                      ClaimFactory!("verify", claimUri, *vCh) |
+                      for (@v <- vCh) {
+                        match v {
+                          (true, _) => {
+                            new gCh in {
+                              rl!(claimUri, *gCh) |
+                              for (Claim <- gCh) {
+                                new sCh in {
+                                  Claim!("get", *sCh) |
+                                  for (@s <- sCh) {
+                                    match s {
+                                      (true, st) => {
+                                        match st.get("kassetRef") {
+                                          Nil => { ret!((false, "membership")) }
+                                          kr => {
+                                            if (kr.get("uri").toString() != kassetUri) {
+                                              ret!((false, "membership"))
+                                            } else {
+                                              rgenMemberCredential!(credentialUri, *ret)
+                                            }
+                                          }
+                                        }
+                                      }
+                                      _ => { ret!((false, "membership")) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret!((false, "membership")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              _ => { ret!((false, "membership")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract rgenMemberCredential(@credentialUri, ret) = {
+    if (credentialUri.length() == 0) {
+      ret!((true, Nil))
+    } else {
+      new rCh, Root, fCh in {
+        rl!(`__RGEN_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:credential-factory", *fCh) |
+          for (@f <- fCh) {
+            match f {
+              (true, factoryUri, _) => {
+                new cCh in {
+                  rl!(factoryUri, *cCh) |
+                  for (CredentialFactory <- cCh) {
+                    new vCh in {
+                      CredentialFactory!("verify", credentialUri, *vCh) |
+                      for (@v <- vCh) {
+                        match v {
+                          (true, _) => { ret!((true, Nil)) }
+                          _ => { ret!((false, "membership")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              _ => { ret!((false, "membership")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*RgenAdapter}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:rgen-adapter", uri, 1, "rgen", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

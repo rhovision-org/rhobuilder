@@ -1,0 +1,650 @@
+// Policy: a bound slip. It owns the premium purse, the line URIs and the aggregate limit.
+// Premium distribution and claim settlement both run through the policy token.
+// Placeholders: __ROOT_URI__.
+new
+  PolicyFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  policyResolve, nowHeight, policyMake, lineEntries, payLinePlan, releaseLinePlan,
+  policyReqOk, policyLineFind, authOwner, authIsOwner,
+  policyDistributeResolve, policyDistributeShares, policyDistributePlan,
+  policyDistributeFactory, policyDistributeRun,
+  policySettleMath, policySettleCover, policySettleApply
+in {
+// Deployer identity helpers. r-cash owns accounts; r-sure only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+  contract policyResolve(@key, ret) = {
+    new rCh, Root, kCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", key, 1, *kCh) |
+        for (@r <- kCh) {
+          match r {
+            (true, uri, _) => {
+              new cCh in {
+                rl!(uri, *cCh) |
+                for (C <- cCh) { ret!((true, *C)) }
+              }
+            }
+            _ => { ret!((false, "unavailable", key)) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract nowHeight(ret) = {
+    new cCh in {
+      policyResolve!("component:clock", *cCh) |
+      for (@r <- cCh) {
+        match r {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract policyReqOk(@req, ret) = {
+    match (req.get("policyId"), req.get("slipId"), req.get("insured"),
+           req.get("terms"), req.get("lines")) {
+      (policyId, slipId, insured, terms, lines) => {
+        if (policyId == Nil || slipId == Nil || insured == Nil
+            || terms == Nil || lines == Nil) {
+          ret!((false, "fields"))
+        } else {
+          if (lines.length() < 1 || lines.length() > 8) {
+            ret!((false, "lines"))
+          } else { ret!((true, Nil)) }
+        }
+      }
+    }
+  } |
+
+  contract policyLineFind(@lines, @i, @lineId, ret) = {
+    if (i >= lines.length()) {
+      ret!((false, "unknown line"))
+    } else {
+      match lines.nth(i) {
+        l => {
+          if (l.get("lineId") == lineId) { ret!((true, l)) }
+          else { policyLineFind!(lines, i + 1, lineId, *ret) }
+        }
+      }
+    }
+  } |
+
+  contract lineEntries(@amounts, @i, @acc, ret) = {
+    if (i >= amounts.length()) { ret!((true, acc)) }
+    else {
+      match amounts.nth(i) {
+        l => {
+          lineEntries!(amounts, i + 1,
+                       acc ++ [{"kind": "line", "uri": l.get("uri"),
+                                "fixed": l.get("amount")}], *ret)
+        }
+      }
+    }
+  } |
+
+  contract releaseLinePlan(@lines, @i, policyToken, ret) = {
+    if (i >= lines.length()) { ret!((true, Nil)) }
+    else {
+      match lines.nth(i) {
+        l => {
+          new lCh in {
+            rl!(l.get("uri"), *lCh) |
+            for (Line <- lCh) {
+              new rCh in {
+                Line!("release", *policyToken, *rCh) |
+                for (@r <- rCh) {
+                  match r {
+                    (true, _) => { releaseLinePlan!(lines, i + 1, *policyToken, *ret) }
+                    _ => { ret!(r) }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract payLinePlan(@lines, @i, @claimId, @insured, policyToken, ret) = {
+    if (i >= lines.length()) { ret!((true, Nil)) }
+    else {
+      match lines.nth(i) {
+        l => {
+          new lCh in {
+            rl!(l.get("uri"), *lCh) |
+            for (Line <- lCh) {
+              new pCh in {
+                Line!("pay", *policyToken, claimId, l.get("amount"), insured, *pCh) |
+                for (@pr <- pCh) {
+                  match pr {
+                    (true, _) => {
+                      payLinePlan!(lines, i + 1, claimId, insured,
+                                   *policyToken, *ret)
+                    }
+                    _ => { 1/0 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract policyDistributeResolve(@s, stateCell, policyToken, @purse, @brand, ret2) = {
+    new rCh in {
+      policyResolve!("component:suremath", *rCh) |
+      for (@m <- rCh) {
+        match m {
+          (true, SureMath) => {
+            new sCh in {
+              @SureMath!("premiumSplit", s.get("premiumTotal"),
+                         s.get("terms").get("brokerCommissionBps"),
+                         s.get("terms").get("centralFundBps"), *sCh) |
+              for (@split <- sCh) {
+                match split {
+                  (true, commission, fund, net) => {
+                    policyDistributeShares!(s, SureMath, net, commission, fund,
+                                            *stateCell, *policyToken, purse, brand,
+                                            *ret2)
+                  }
+                  _ => { stateCell!(s) | ret2!(split) }
+                }
+              }
+            }
+          }
+          _ => { stateCell!(s) | ret2!((false, "math unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract policyDistributeShares(@s, @SureMath, @net, @commission, @fund, stateCell,
+                                  policyToken, @purse, @brand, ret2) = {
+    new lCh in {
+      @SureMath!("lineShares", net, s.get("lines"), *lCh) |
+      for (@shares <- lCh) {
+        match shares {
+          (true, lineAmounts) => {
+            policyDistributePlan!(s, lineAmounts, commission, fund, *stateCell,
+                                  *policyToken, purse, brand, *ret2)
+          }
+          _ => { stateCell!(s) | ret2!(shares) }
+        }
+      }
+    }
+  } |
+
+  contract policyDistributePlan(@s, @lineAmounts, @commission, @fund, stateCell,
+                                policyToken, @purse, @brand, ret2) = {
+    new planCh in {
+      lineEntries!(lineAmounts, 0, [], *planCh) |
+      for (@plan <- planCh) {
+        match plan {
+          (true, lineEntries) => {
+            match [{"kind": "account", "owner": s.get("brokerOwner"),
+                    "fixed": commission},
+                   {"kind": "fund", "fixed": fund}] ++ lineEntries {
+              fullPlan => {
+                policyDistributeFactory!(s, fullPlan, *stateCell, *policyToken,
+                                         purse, brand, *ret2)
+              }
+            }
+          }
+          _ => { stateCell!(s) | ret2!(plan) }
+        }
+      }
+    }
+  } |
+
+  contract policyDistributeFactory(@s, @fullPlan, stateCell, policyToken,
+                                   @purse, @brand, ret2) = {
+    new dCh in {
+      policyResolve!("component:distribution-factory", *dCh) |
+      for (@d <- dCh) {
+        match d {
+          (true, DistributionFactory) => {
+            new cCh in {
+              @DistributionFactory!("create", purse, brand, s.get("assetId"),
+                                    s.get("id"), s.get("premiumTotal"), fullPlan,
+                                    *policyToken, *cCh) |
+              for (@cr <- cCh) {
+                match cr {
+                  (true, distUri) => {
+                    policyDistributeRun!(s, distUri, *stateCell, *policyToken, *ret2)
+                  }
+                  _ => { 1/0 }
+                }
+              }
+            }
+          }
+          _ => { stateCell!(s) | ret2!((false, "distribution unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract policyDistributeRun(@s, @distUri, stateCell, policyToken, ret2) = {
+    new runCh in {
+      rl!(distUri, *runCh) |
+      for (Distribution <- runCh) {
+        new rrCh in {
+          Distribution!("run", *policyToken, *rrCh) |
+          for (@rr <- rrCh) {
+            match rr {
+              (true, _) => {
+                stateCell!(s.set("distributed", true)
+                             .set("nonce", s.get("nonce") + 1)) |
+                ret2!((true, Nil))
+              }
+              _ => { 1/0 }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract policySettleMath(@s, @c2, stateCell, @claimId, @agreed, @insured,
+                            policyToken, ret2) = {
+    new mCh in {
+      policyResolve!("component:suremath", *mCh) |
+      for (@m <- mCh) {
+        match m {
+          (true, SureMath) => {
+            new pCh in {
+              @SureMath!("payable", agreed, s.get("perClaimLimit"),
+                         s.get("aggregateRemaining"), s.get("deductible"), *pCh) |
+              for (@pay <- pCh) {
+                match pay {
+                  (true, payable) => {
+                    policySettleCover!(s, c2, SureMath, payable, *stateCell, claimId,
+                                       agreed, insured, *policyToken, *ret2)
+                  }
+                  _ => { stateCell!(s) | ret2!(pay) }
+                }
+              }
+            }
+          }
+          _ => { stateCell!(s) | ret2!((false, "math unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract policySettleCover(@s, @c2, @SureMath, @payable, stateCell, @claimId,
+                             @agreed, @insured, policyToken, ret2) = {
+    new fCh in {
+      policyResolve!("component:fund", *fCh) |
+      for (@f <- fCh) {
+        match f {
+          (true, SureFund) => {
+            new covCh in {
+              @SureFund!("covered", claimId, *covCh) |
+              for (@cov <- covCh) {
+                match cov {
+                  (true, cover) => {
+                    match payable - cover.get("amount") {
+                      linePayable => {
+                        policySettleApply!(s, c2, SureMath, payable, linePayable,
+                                           *stateCell, claimId, agreed, insured,
+                                           *policyToken, *ret2)
+                      }
+                    }
+                  }
+                  (false, _) => {
+                    policySettleApply!(s, c2, SureMath, payable, payable,
+                                       *stateCell, claimId, agreed, insured,
+                                       *policyToken, *ret2)
+                  }
+                  _ => { stateCell!(s) | ret2!(cov) }
+                }
+              }
+            }
+          }
+          _ => { stateCell!(s) | ret2!((false, "fund unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract policySettleApply(@s, @c2, @SureMath, @payable, @linePayable, stateCell,
+                             @claimId, @agreed, @insured, policyToken, ret2) = {
+    if (linePayable < 0) {
+      stateCell!(s) | ret2!((false, "cover"))
+    } else {
+      new plCh in {
+        @SureMath!("settlePlan", linePayable, s.get("lines"), *plCh) |
+        for (@pl <- plCh) {
+          match pl {
+            (true, lineAmounts) => {
+              new payCh in {
+                payLinePlan!(lineAmounts, 0, claimId, insured, *policyToken, *payCh) |
+                for (@pr <- payCh) {
+                  match pr {
+                    (true, Nil) => {
+                      stateCell!(s.set("aggregatePaid",
+                          s.get("aggregatePaid") + payable)
+                        .set("aggregateRemaining",
+                          s.get("aggregateRemaining") - payable)
+                        .set("claims", s.get("claims").set(claimId,
+                          c2.set("status", "settled").set("agreed", agreed)
+                            .set("paid", payable)))
+                        .set("nonce", s.get("nonce") + 1)) |
+                      ret2!((true, payable))
+                    }
+                    _ => { 1/0 }
+                  }
+                }
+              }
+            }
+            _ => { stateCell!(s) | ret2!(pl) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract policyMake(@req, @purse, @brand, policyToken, claimToken, ret) = {
+  new cfgReq, cfgPurse, cfgBrand, cfgPolicyToken, cfgClaimToken in {
+    cfgReq!(req) |
+    cfgPurse!(purse) |
+    cfgBrand!(brand) |
+    cfgPolicyToken!(*policyToken) |
+    cfgClaimToken!(*claimToken) |
+    for (@reqV <- cfgReq; @purseV <- cfgPurse; @brandV <- cfgBrand; policyTokenV <- cfgPolicyToken; claimTokenV <- cfgClaimToken) {
+
+    new Policy, policyState, uriCh in {
+      policyState!({
+        "id": reqV.get("policyId"),
+        "uri": "",
+        "slipId": reqV.get("slipId"),
+        "slipUri": reqV.get("slipUri"),
+        "riskId": reqV.get("riskId"),
+        "insured": reqV.get("insured"),
+        "broker": reqV.get("broker"),
+        "brokerOwner": reqV.get("brokerOwner"),
+        "class": reqV.get("class"),
+        "assetId": reqV.get("terms").get("assetId"),
+        "terms": reqV.get("terms"),
+        "termsHash": reqV.get("termsHash"),
+        "premiumTotal": reqV.get("premiumTotal"),
+        "lines": reqV.get("lines"),
+        "lead": Nil,
+        "second": Nil,
+        "leadManager": Nil,
+        "secondManager": Nil,
+        "aggregateLimit": reqV.get("terms").get("aggregateLimit"),
+        "aggregatePaid": 0,
+        "aggregateRemaining": reqV.get("terms").get("aggregateLimit"),
+        "perClaimLimit": reqV.get("terms").get("perClaimLimit"),
+        "deductible": reqV.get("terms").get("deductible"),
+        "claims": {},
+        "distributed": false,
+        "status": "active",
+        "nonce": 0
+      }) |
+
+      contract Policy(@"info", ret2) = {
+        for (@s <<- policyState) { ret2!((true, s)) }
+      } |
+
+      contract Policy(@"terms", ret2) = {
+        for (@s <<- policyState) { ret2!((true, s.get("terms"))) }
+      } |
+
+      contract Policy(@"lines", ret2) = {
+        for (@s <<- policyState) { ret2!((true, s.get("lines"))) }
+      } |
+
+      contract Policy(@"line", @lineId, ret2) = {
+        for (@s <<- policyState) {
+          policyLineFind!(s.get("lines"), 0, lineId, *ret2)
+        }
+      } |
+
+      contract Policy(@"claims", ret2) = {
+        for (@s <<- policyState) { ret2!((true, s.get("claims"))) }
+      } |
+
+      contract Policy(@"claim", @claimId, ret2) = {
+        for (@s <<- policyState) {
+          match s.get("claims").get(claimId) {
+            Nil => { ret2!((false, "unknown claim")) }
+            c2 => { ret2!((true, c2)) }
+          }
+        }
+      } |
+
+      contract Policy(@"payable", @agreed, ret2) = {
+        for (@s <<- policyState) {
+          new mCh in {
+            policyResolve!("component:suremath", *mCh) |
+            for (@m <- mCh) {
+              match m {
+                (true, SureMath) => {
+                  @SureMath!("payable", agreed, s.get("perClaimLimit"),
+                             s.get("aggregateRemaining"), s.get("deductible"), *ret2)
+                }
+                _ => { ret2!((false, "math unavailable")) }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Policy(@"distribute", policyToken2, ret2) = {
+
+        if (*policyToken2 != *policyTokenV) {
+          ret2!((false, "not holder"))
+        } else {
+          for (@s <- policyState) {
+            if (s.get("distributed")) {
+              policyState!(s) | ret2!((true, "already distributed"))
+            } else {
+              policyDistributeResolve!(s, *policyState, *policyTokenV, purseV,
+                                       brandV, *ret2)
+            }
+          }
+        }
+
+} |
+
+      contract Policy(@"openClaim", dId, @reqV, ret2) = {
+        new aCh in {
+          authOwner!(*dId, *aCh) |
+          for (@(true, who) <- aCh) {
+            // Peek, do not consume: ClaimFactory.create calls claimWindowOk, which reads
+            // this policy through Policy("info") and peeks policyState. Consuming the
+            // only datum before that call deadlocks openClaim against itself. The
+            // snapshot is advisory; the claim id is committed by the single consume
+            // below once the factory has replied.
+            for (@s <<- policyState) {
+              if (who != s.get("insured") && who != s.get("broker")) {
+                ret2!((false, "not insured"))
+              } else {
+                if (s.get("status") != "active") {
+                  ret2!((false, "not active"))
+                } else {
+                  if (s.get("aggregateRemaining") < 1) {
+                    ret2!((false, "exhausted"))
+                  } else {
+                    new cCh in {
+                      policyResolve!("component:claim-factory", *cCh) |
+                      for (@cf <- cCh) {
+                        match cf {
+                          (true, ClaimFactory) => {
+                            new cfCh in {
+                              @ClaimFactory!("create", *dId, s.get("uri"), s.get("id"),
+                                             s.get("insured"), s.get("broker"),
+                                             *claimTokenV, reqV, *cfCh) |
+                              for (@cr <- cfCh) {
+                                match cr {
+                                  (true, claimId, claimUri) => {
+                                    for (@s2 <- policyState) {
+                                      policyState!(s2.set("claims",
+                                          s2.get("claims").set(claimId, {
+                                            "uri": claimUri, "status": "notified",
+                                            "agreed": 0, "paid": 0}))
+                                        .set("nonce", s2.get("nonce") + 1)) |
+                                      ret2!((true, claimId, claimUri))
+                                    }
+                                  }
+                                  _ => { ret2!(cr) }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret2!((false, "claim factory unavailable")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Policy(@"settleClaim", claimToken2, @claimId, @agreed,
+                       @insured, ret2) = {
+        if (*claimToken2 != *claimTokenV) {
+          ret2!((false, "not holder"))
+        } else {
+          for (@s <- policyState) {
+            match s.get("claims").get(claimId) {
+              Nil => { policyState!(s) | ret2!((false, "unknown claim")) }
+              c2 => {
+                if (c2.get("status") == "settled") {
+                  policyState!(s) | ret2!((false, "already settled"))
+                } else {
+                  policySettleMath!(s, c2, *policyState, claimId, agreed, insured,
+                                    *policyTokenV, *ret2)
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Policy(@"expire", ret2) = {
+        new hCh in {
+          nowHeight!(*hCh) |
+          for (@h <- hCh) {
+            match h {
+              (true, now) => {
+                for (@s <- policyState) {
+                  match s.get("terms").get("runOffBlocks") + s.get("terms").get("periodEndHeight") {
+                    end => {
+                      if (now <= end) {
+                        policyState!(s) | ret2!((false, "not expired"))
+                      } else {
+                        new relCh in {
+                          releaseLinePlan!(s.get("lines"), 0, *policyTokenV, *relCh) |
+                          for (@rel <- relCh) {
+                            match rel {
+                              (true, Nil) => {
+                                policyState!(s.set("status", "expired")
+                                              .set("nonce", s.get("nonce") + 1)) |
+                                ret2!((true, Nil))
+                              }
+                              _ => { 1/0 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              _ => { ret2!(h) }
+            }
+          }
+        }
+      } |
+
+      rs!(bundle+{*Policy}, *uriCh) |
+      for (@uri <- uriCh) {
+        for (@s2 <- policyState) {
+          policyState!(s2.set("uri", uri)) |
+          new pbCh in {
+            policyResolve!("component:policy-book", *pbCh) |
+            for (@pbr <- pbCh) {
+              match pbr {
+                (true, PolicyBook) => {
+                  new regCh in {
+                    @PolicyBook!("register", s2.get("id"), uri, s2.get("slipId"),
+                                s2.get("insured"), s2.get("broker"), *regCh) |
+                    for (@r <- regCh) { ret!((true, uri)) }
+                  }
+                }
+                _ => { ret!((true, uri)) }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    }
+  }
+} |
+
+  contract PolicyFactory(@"create", @req, @purse, @brand, policyToken, claimToken, ret) = {
+    new okCh in {
+      policyReqOk!(req, *okCh) |
+      for (@ok <- okCh) {
+        match ok {
+          (false, reason) => { ret!((false, reason)) }
+          (true, Nil) => { policyMake!(req, purse, brand, *policyToken, *claimToken, *ret) }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*PolicyFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:policy-factory", uri, 1, "policy",
+            *deployerId, *ack) |
+      for (@r <- ack) { deployId!([uri]) }
+    }
+  }
+}

@@ -182,6 +182,16 @@ const PLACEHOLDERS: &[&str] = &[
     "__Resource__",
 ];
 
+const INSTALL_PLACEHOLDERS: &[&str] = &[
+    "__DISPUTE_URI__",
+    "__PAYMENTS_URI__",
+    "__BOOKING_ADAPTER_URI__",
+    "__COVER_ADAPTER_URI__",
+    "__RCASH_ROOT_URI__",
+    "__RSHARE_ROOT_URI__",
+    "__RSURE_ROOT_URI__",
+];
+
 const ALLOWED_DUNDERS: &[&str] = &[
     "__all__",
     "__annotations__",
@@ -218,6 +228,7 @@ fn unresolved(text: &str) -> Vec<String> {
             let token = format!("__{between}__");
             if !ALLOWED_DUNDERS.contains(&token.as_str())
                 && !PLACEHOLDERS.contains(&token.as_str())
+                && !INSTALL_PLACEHOLDERS.contains(&token.as_str())
                 && !found.contains(&token)
             {
                 found.push(token);
@@ -346,6 +357,13 @@ fn render(
     let overlay = template_root.join(template.overlay());
     if overlay.is_dir() {
         collect(&overlay, &overlay, &mut raw)?;
+    }
+    // A worked example may replace the placeholder contracts for its own slug. It is
+    // still rendered through the same placeholder policy; install-time URIs are left
+    // for the deploy executor.
+    let example = template_root.join("examples").join(&design.app.slug);
+    if example.is_dir() {
+        collect(&example, &example, &mut raw)?;
     }
 
     let map = replacements(design);

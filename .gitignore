@@ -21,6 +21,7 @@ __pycache__/
 # Local network state and keys
 /.devnet/
 /.testnet/
+/.ops/
 /deployments/*.json
 !deployments/.gitkeep
 

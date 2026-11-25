@@ -1,0 +1,741 @@
+// Why: BIM p.7/p.9 names a "new value proposition" that captures intrinsic intangible value.
+//      The papers do not define a value-proposition state machine, so this is a user-requested
+//      first-class primitive: a proposition cell, validated by a qualified subject, composable
+//      with a claim or K-Asset by reference.
+// Paper: @mathews2017bim p.7, p.9 (paper-adjacent phrase); user decision (separate primitive).
+// r-gen decision: per-VP linear cell; one validation transition; dispute applies only through a
+//      private capability held by the oracle case.
+// Placeholders: __ROOT_URI__, __CREDENTIAL_FACTORY_URI__, __ORACLE_FACTORY_URI__.
+new
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, cfCh, ofCh, cFactory, ack1,
+  authOwner, authSubject, authPubKey, nowHeight,
+  CredentialFactory, OracleFactory,
+  vpReqOk, vpAssetOk, vpQuantityOk, vpQuantityFieldsOk, vpQualityOk, vpQualityFieldsOk,
+  vpQualityScaleOk, vpVarianceOk, vpVarianceFieldsOk,
+  vpVarianceCurveOk, vpVarianceCurveFieldsOk, vpCurveOrdered, vpCurveOrderedTail,
+  vpCurveSum,
+  outcomeStatus,
+  checkCredentialProof, proveAndCheck, checkValidatedProof, proveValidatedAndCheck,
+  proveAndCheckCall, proveAndCheckReply, proveTakeAndCheck,
+  proveValidatedCall, proveValidatedReply, proveValidatedTake
+in {
+// Deployer identity helpers. The REV address is the subject id; the public key is stored
+// only where an identity profile needs it.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr, pk)) }
+    }
+  }
+} |
+
+contract authSubject(dId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr, _) => { ret!((true, addr)) }
+        _ => { ret!((false, "no identity")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, _, pk) => { ret!((true, pk)) }
+        _ => { ret!((false, "no identity")) }
+      }
+    }
+  }
+} |
+// The paper's clock is an agreed social schedule; the chain supplies the height that makes
+// it enforceable. The kernel is native: no deployed Clock/Verifier contract is needed.
+
+contract nowHeight(ret) = {
+  new bd(`rho:block:data`), ch in {
+    bd!(*ch) |
+    for (@h, _, _ <- ch) { ret!(h) }
+  }
+} |
+// One-shot proof helpers. A credential or value proposition `prove` arm returns a private
+// `Proof` capability on a caller-supplied channel; every `prove` variant sends
+// `bundle+{*Proof}` on that channel and returns `(true, Nil)`. The proof is never inserted
+// into the registry, so there is no discoverable proof URI for a third party to burn.
+// `take` yields `(true, data)` once and `(false, "used")` after that.
+//
+// Each check is a flat helper: one `for`, one `match`, and a direct boolean return. No
+// nested match/if chain.
+
+contract checkCredentialProof(Proof, @validator, @credentialUri, @height, @rq, ret) = {
+  new tCh in {
+    Proof!("take", *tCh) |
+    for (@t <- tCh) {
+      match t {
+        (true, data) => {
+          ret!(data.get("subject") == validator
+            && data.get("credentialUri") == credentialUri
+            && data.get("atHeight") == height
+            && data.get("requirement") == rq)
+        }
+        _ => { ret!(false) }
+      }
+    }
+  }
+} |
+
+contract proveAndCheck(credentialFactory, @credentialUri, dId, @rq, @validator, @height, ret) = {
+  new vCh in {
+    credentialFactory!("verify", credentialUri, *vCh) |
+    for (@vf <- vCh) {
+      match vf {
+        (true, _) => {
+          new credCh in {
+            rl!(credentialUri, *credCh) |
+            for (Credential <- credCh) {
+              proveAndCheckCall!(*Credential, credentialUri, *dId, rq, validator, height, *ret)
+            }
+          }
+        }
+        _ => { ret!(false) }
+      }
+    }
+  }
+} |
+
+contract proveAndCheckCall(Credential, @credentialUri, dId, @rq, @validator, @height, ret) = {
+  new statusCh, proofCh in {
+    Credential!("prove", *dId, rq, *statusCh, *proofCh) |
+    for (@s <- statusCh) {
+      proveAndCheckReply!(s, *proofCh, validator, credentialUri, height, rq, *ret)
+    }
+  }
+} |
+
+contract proveAndCheckReply(@s, proofCh, @validator, @credentialUri, @height, @rq, ret) = {
+  match s {
+    (true, _) => { proveTakeAndCheck!(*proofCh, validator, credentialUri, height, rq, *ret) }
+    _ => { ret!(false) }
+  }
+} |
+
+contract proveTakeAndCheck(proofCh, @validator, @credentialUri, @height, @rq, ret) = {
+  new okCh in {
+    for (Proof <- proofCh) {
+      checkCredentialProof!(*Proof, validator, credentialUri, height, rq, *okCh) |
+      for (@ok <- okCh) { ret!(ok) }
+    }
+  }
+} |
+
+contract checkValidatedProof(Proof, @caller, @atHeight, ret) = {
+  new tCh in {
+    Proof!("take", *tCh) |
+    for (@t <- tCh) {
+      match t {
+        (true, data) => {
+          ret!(data.get("caller") == caller && data.get("atHeight") == atHeight)
+        }
+        _ => { ret!(false) }
+      }
+    }
+  }
+} |
+
+contract proveValidatedAndCheck(@vpUri, dId, @caller, @atHeight, ret) = {
+  new vpc in {
+    rl!(vpUri, *vpc) |
+    for (VP <- vpc) { proveValidatedCall!(*VP, vpUri, *dId, caller, atHeight, *ret) }
+  }
+} |
+
+contract proveValidatedCall(VP, @vpUri, dId, @caller, @atHeight, ret) = {
+  new statusCh, proofCh in {
+    VP!("proveValidated", *dId, atHeight, *statusCh, *proofCh) |
+    for (@s <- statusCh) {
+      proveValidatedReply!(s, *proofCh, caller, atHeight, *ret)
+    }
+  }
+} |
+
+contract proveValidatedReply(@s, proofCh, @caller, @atHeight, ret) = {
+  match s {
+    (true, _) => { proveValidatedTake!(*proofCh, caller, atHeight, *ret) }
+    _ => { ret!(false) }
+  }
+} |
+
+contract proveValidatedTake(proofCh, @caller, @atHeight, ret) = {
+  new okCh in {
+    for (Proof <- proofCh) {
+      checkValidatedProof!(*Proof, caller, atHeight, *okCh) |
+      for (@ok <- okCh) { ret!(ok) }
+    }
+  }
+} |
+// One outcome-to-status table. The K-Asset and value-proposition applyDecision arms use the
+// same mapping; keeping it in one helper stops the two copies from drifting. An unknown
+// outcome returns Nil, which the caller turns into an explicit refusal.
+
+contract outcomeStatus(@outcome, ret) = {
+  match outcome {
+    "uphold" => { ret!("upheld") }
+    "revoke" => { ret!("revoked") }
+    "partial" => { ret!("partially_revoked") }
+    _ => { ret!(Nil) }
+  }
+} |
+
+  contract vpReqOk(@req, @height, ret) = {
+    match req.get("subjectRef") {
+      Nil => { ret!(false) }
+      sr => {
+        match (req.get("statementHash"), req.get("termsHash"),
+               req.get("selectionCriteria"), req.get("deadlineHeight")) {
+          (s, t, sc, d) => {
+            if (s == Nil || s == "" || t == Nil || t == ""
+                || sc == Nil || d == Nil || d <= height) { ret!(false) }
+            else { vpAssetOk!(req, *ret) }
+          }
+        }
+      }
+    }
+  } |
+
+  // The VP describes the asset as quantity, quality and a variance rate around the
+  // mean. The rate is dimensionless basis points (sigma^2 / mean^2); the raw
+  // second moment is derived, never stored as a float.
+  contract vpAssetOk(@req, ret) = {
+    new qCh, lCh, vCh in {
+      vpQuantityOk!(req.get("quantity"), *qCh) |
+      vpQualityOk!(req.get("quality"), *lCh) |
+      vpVarianceOk!(req.get("variance"), *vCh) |
+      for (@q <- qCh; @l <- lCh; @v <- vCh) {
+        if (q && l && v) { ret!(true) } else { ret!(false) }
+      }
+    }
+  } |
+
+  contract vpQuantityOk(@q, ret) = {
+    match q {
+      Nil => { ret!(false) }
+      v => { vpQuantityFieldsOk!(v.get("unit"), v.get("mean"), *ret) }
+    }
+  } |
+
+  contract vpQuantityFieldsOk(@unit, @mean, ret) = {
+    if (unit == Nil || unit == "" || mean == Nil || mean <= 0) { ret!(false) }
+    else { ret!(true) }
+  } |
+
+  contract vpQualityOk(@q, ret) = {
+    match q {
+      Nil => { ret!(false) }
+      v => {
+        vpQualityFieldsOk!(v.get("kind"), v.get("spec"), v.get("scale"),
+                           v.get("mean"), *ret)
+      }
+    }
+  } |
+
+  contract vpQualityFieldsOk(@kind, @spec, @scale, @mean, ret) = {
+    if (kind == Nil || kind == "" || spec == Nil || spec == ""
+        || scale == Nil || mean == Nil) { ret!(false) }
+    else { vpQualityScaleOk!(scale, mean, *ret) }
+  } |
+
+  contract vpQualityScaleOk(@scale, @mean, ret) = {
+    match (scale.get("min"), scale.get("max")) {
+      (lo, hi) => {
+        if (lo == Nil || hi == Nil || lo < 4 || hi > 20 || lo > hi
+            || mean < lo || mean > hi) { ret!(false) }
+        else { ret!(true) }
+      }
+    }
+  } |
+
+  contract vpVarianceOk(@v, ret) = {
+    match v {
+      Nil => { ret!(false) }
+      m => {
+        new fCh, cCh in {
+          vpVarianceFieldsOk!(m.get("quantityBps"), m.get("qualityBps"),
+                               m.get("n"), *fCh) |
+          vpVarianceCurveOk!(m.get("curve"), *cCh) |
+          for (@f <- fCh; @c <- cCh) {
+            if (f && c) { ret!(true) } else { ret!(false) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract vpVarianceFieldsOk(@qBps, @lBps, @n, ret) = {
+    if (qBps == Nil || lBps == Nil || n == Nil
+        || qBps < 0 || qBps > 10000 || lBps < 0 || lBps > 10000
+        || qBps + lBps > 10000 || n < 1) { ret!(false) }
+    else { ret!(true) }
+  } |
+
+  contract vpVarianceCurveOk(@curve, ret) = {
+    match curve {
+      Nil => { ret!(true) }
+      c => {
+        vpVarianceCurveFieldsOk!(c.get("kind"), c.get("unit"), c.get("n"),
+                                 c.get("points"), *ret)
+      }
+    }
+  } |
+
+  contract vpVarianceCurveFieldsOk(@kind, @unit, @n, @points, ret) = {
+    if (kind != "quantiles" || unit != "bpsOfDeclaredValue" || n != 16
+        || points == Nil || points.length() != 16) { ret!(false) }
+    else {
+      new oCh, sCh in {
+        vpCurveOrdered!(points, *oCh) |
+        vpCurveSum!(points, 0, *sCh) |
+        for (@ok <- oCh; @sum <- sCh) {
+          if (ok == false || sum < 1) { ret!(false) }
+          else { ret!(true) }
+        }
+      }
+    }
+  } |
+
+  contract vpCurveOrdered(@points, ret) = {
+    match points {
+      [] => { ret!(true) }
+      [head, ...tail] => { vpCurveOrderedTail!(head, tail, *ret) }
+      _ => { ret!(false) }
+    }
+  } |
+
+  contract vpCurveOrderedTail(@prev, @rest, ret) = {
+    match rest {
+      [] => { ret!(true) }
+      [head, ...tail] => {
+        if (prev < 0 || prev > 10000 || head < 0 || head > 10000
+            || prev > head) { ret!(false) }
+        else { vpCurveOrderedTail!(head, tail, *ret) }
+      }
+      _ => { ret!(false) }
+    }
+  } |
+
+  contract vpCurveSum(@points, @acc, ret) = {
+    match points {
+      [] => { ret!(acc) }
+      [head, ...tail] => { vpCurveSum!(tail, acc + head, *ret) }
+      _ => { ret!(acc) }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  rl!(`__CREDENTIAL_FACTORY_URI__`, *cfCh) |
+  rl!(`__ORACLE_FACTORY_URI__`, *ofCh) |
+  for (CredentialFactory <- cfCh; OracleFactory <- ofCh; Root <- rootCh) {
+    // The VP hands its private Apply to the oracle factory on dispute. Publish the
+    // factory only when the wired URI matches the Root-registered Oracle component
+    // (RGA-070 / CHZ-030).
+    new wiringCh in {
+    Root!("resolve", "component:oracle-factory", *wiringCh) |
+    for (@r <- wiringCh) {
+    match r {
+    (true, oracleUri, _) => {
+    if (oracleUri.toString() != `__ORACLE_FACTORY_URI__`.toString()) { Nil }
+    else {
+    new ValuePropositionFactory in {
+      new vpRegistryState in {
+      vpRegistryState!({}) |
+
+      contract ValuePropositionFactory(@"verify", @uri, ret) = {
+        for (@r <<- vpRegistryState) {
+          match r.get(uri.toString()) {
+            Nil => { ret!((false, "unknown value proposition")) }
+            rec => {
+              if (rec.get("uri").toString() != uri.toString()) {
+                ret!((false, "uri mismatch"))
+              } else { ret!((true, rec)) }
+            }
+          }
+        }
+      } |
+
+      contract ValuePropositionFactory(@"propose", dId, @req, ret) = {
+        new aCh, hCh in {
+          authSubject!(*dId, *aCh) |
+          nowHeight!(*hCh) |
+          for (@(true, proposer) <- aCh; @height <- hCh) {
+            new okCh in {
+              vpReqOk!(req, height, *okCh) |
+              for (@ok <- okCh) {
+                if (not ok) {
+                  ret!((false, "fields"))
+                } else {
+                  new vpState, ValueProposition, Apply, openVpDispute,
+                      vpApplyGate, vpApplyOutcome, vpExpireCase, vpExpireStatus,
+                      vpExpireDo, uriCh in {
+                    vpState!({
+                      "uri": "",
+                      "proposer": proposer,
+                      "subjectRef": req.get("subjectRef"),
+                      "statementHash": req.get("statementHash"),
+                      "valueModelHash": req.get("valueModelHash"),
+                      "beneficiaries": req.get("beneficiaries"),
+                      "termsHash": req.get("termsHash"),
+                      "selectionCriteria": req.get("selectionCriteria"),
+                      "quantity": req.get("quantity"),
+                      "quality": req.get("quality"),
+                      "variance": req.get("variance"),
+                      "status": "proposed",
+                      "validator": Nil,
+                      "validation": Nil,
+                      "comments": [],
+                      "deadlineHeight": req.get("deadlineHeight"),
+                      "dispute": Nil,
+                      "revocation": Nil,
+                      "createdAt": height,
+                      "version": 1
+                    }) |
+
+                    contract ValueProposition(@"get", ret2) = {
+                      for (@s <<- vpState) { ret2!((true, s)) }
+                    } |
+
+                    contract ValueProposition(@"comments", ret2) = {
+                      for (@s <<- vpState) { ret2!((true, s.get("comments"))) }
+                    } |
+
+                    contract ValueProposition(@"comment", dId2, @comment, ret2) = {
+                      new a2, h2 in {
+                        authSubject!(*dId2, *a2) |
+                        nowHeight!(*h2) |
+                        for (@(true, who) <- a2; @now <- h2) {
+                          for (@s <- vpState) {
+                            if (s.get("status") != "proposed") {
+                              vpState!(s) | ret2!((false, "not proposed"))
+                            } else {
+                              if (now > s.get("deadlineHeight")) {
+                                vpState!(s) | ret2!((false, "clock"))
+                              } else {
+                                vpState!(s.set("comments", s.get("comments") ++ [{
+                                  "id": "cm:" ++ who ++ ":" ++ now.toString(),
+                                  "by": who, "hash": comment.get("hash"), "at": now}])
+                                  .set("version", s.get("version") + 1)) |
+                                ret2!((true, Nil))
+                              }
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract ValueProposition(@"withdraw", dId2, ret2) = {
+                      new a2, h2 in {
+                        authSubject!(*dId2, *a2) |
+                        nowHeight!(*h2) |
+                        for (@(true, who) <- a2; @now <- h2) {
+                          for (@s <- vpState) {
+                            if (who != s.get("proposer")) {
+                              vpState!(s) | ret2!((false, "not proposer"))
+                            } else {
+                              if (s.get("status") != "proposed") {
+                                vpState!(s) | ret2!((false, "not proposed"))
+                              } else {
+                                vpState!(s.set("status", "withdrawn")
+                                          .set("version", s.get("version") + 1)) |
+                                ret2!((true, Nil))
+                              }
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract ValueProposition(@"validate", dId2, @credentialUri, @validation, ret2) = {
+                      new a2, h2 in {
+                        authSubject!(*dId2, *a2) |
+                        nowHeight!(*h2) |
+                        for (@(true, validator) <- a2; @height <- h2) {
+                          for (@s <- vpState) {
+                            match (s.get("status"), validator == s.get("proposer"),
+                                   height > s.get("deadlineHeight")) {
+                              ("proposed", false, false) => {
+                                new vfCh, okCh in {
+                                  CredentialFactory!("verify", credentialUri, *vfCh) |
+                                  for (@vf <- vfCh) {
+                                    match vf {
+                                      (true, _) => {
+                                        proveAndCheck!(*CredentialFactory, credentialUri, *dId2,
+                                          s.get("selectionCriteria"), validator, height, *okCh) |
+                                        for (@ok <- okCh) {
+                                          if (ok) {
+                                            vpState!(s.set("status", "validated")
+                                              .set("validator", validator)
+                                              .set("validation", {
+                                                "validator": validator,
+                                                "credentialUri": credentialUri,
+                                                "notesHash": validation.get("notesHash"),
+                                                "at": height})
+                                              .set("version", s.get("version") + 1)) |
+                                            ret2!((true, Nil))
+                                          } else { vpState!(s) | ret2!((false, "proof")) }
+                                        }
+                                      }
+                                      _ => { vpState!(s) | ret2!((false, "forged credential")) }
+                                    }
+                                  }
+                                }
+                              }
+                              ("proposed", true, _) => { vpState!(s) | ret2!((false, "self validation")) }
+                              ("proposed", _, true) => { vpState!(s) | ret2!((false, "deadline")) }
+                              _ => { vpState!(s) | ret2!((false, "not proposed")) }
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract ValueProposition(@"proveValidated", dId2, @atHeight, ret2, proofCh) = {
+                      new a2, h2 in {
+                        authSubject!(*dId2, *a2) |
+                        nowHeight!(*h2) |
+                        for (@(true, who) <- a2; @now <- h2) {
+                          for (@s <- vpState) {
+                            match (s.get("status") == "validated", atHeight == now) {
+                              (false, _) => { vpState!(s) | ret2!((false, "not validated")) }
+                              (true, false) => { vpState!(s) | ret2!((false, "height")) }
+                              (true, true) => {
+                              new proofState, Proof in {
+                                proofState!({
+                                  "data": {
+                                    "uri": s.get("uri"),
+                                    "atHeight": atHeight,
+                                    "caller": who
+                                  },
+                                  "used": false
+                                }) |
+                                contract Proof(@"take", ret3) = {
+                                  for (@p <- proofState) {
+                                    if (p.get("used")) {
+                                      proofState!(p) | ret3!((false, "used"))
+                                    } else {
+                                      proofState!(p.set("used", true)) |
+                                      ret3!((true, p.get("data")))
+                                    }
+                                  }
+                                } |
+                                vpState!(s) |
+                                proofCh!(bundle+{*Proof}) |
+                                ret2!((true, Nil))
+                              }
+                              }
+                              _ => { vpState!(s) | ret2!((false, "not validated")) }
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract openVpDispute(@s, @who, @parties, @caseReq, dId, ret2) = {
+                      new proofState, Proof, proofCh, oCh in {
+                        proofState!({
+                          "data": {
+                            "kind": "vp",
+                            "subjectRef": s.get("subjectRef"),
+                            "subjectUri": s.get("uri").toString(),
+                            "parties": parties,
+                            "discipline": s.get("selectionCriteria").get("discipline"),
+                            "jurisdiction": s.get("selectionCriteria").get("jurisdiction")},
+                          "used": false}) |
+                        contract Proof(@"take", ret3) = {
+                          for (@p <- proofState) {
+                            if (p.get("used")) {
+                              proofState!(p) | ret3!((false, "used"))
+                            } else {
+                              proofState!(p.set("used", true)) |
+                              ret3!((true, p.get("data")))
+                            }
+                          }
+                        } |
+                        proofCh!(bundle+{*Proof}) |
+                        OracleFactory!("openBound", *dId, *proofCh, {
+                          "kind": caseReq.get("kind"),
+                          "openedBy": who,
+                          "groundsHash": caseReq.get("groundsHash"),
+                          "adjudicator": caseReq.get("adjudicator"),
+                          "adjudicatorCredentialUri": caseReq.get("adjudicatorCredentialUri"),
+                          "deadlineHeight": caseReq.get("deadlineHeight")
+                        }, *Apply, *oCh) |
+                        for (@o <- oCh) {
+                          match o {
+                            (true, caseRef) => {
+                              vpState!(s.set("status", "disputed")
+                                         .set("dispute", caseRef)
+                                         .set("disputePrevStatus", s.get("status"))
+                                         .set("version", s.get("version") + 1)) |
+                              ret2!((true, caseRef))
+                            }
+                            _ => { vpState!(s) | ret2!(o) }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract ValueProposition(@"openDispute", dId2, @caseReq, ret2) = {
+                      new a2 in {
+                        authSubject!(*dId2, *a2) |
+                        for (@(true, who) <- a2) {
+                          for (@s <- vpState) {
+                            match (who == s.get("proposer") || who == s.get("validator"),
+                                   s.get("status") == "proposed"
+                                     || s.get("status") == "validated",
+                                   s.get("dispute")) {
+                              (false, _, _) => { vpState!(s) | ret2!((false, "not a party")) }
+                              (true, false, _) => { vpState!(s) | ret2!((false, "not disputable")) }
+                              (true, true, Nil) => {
+                                match s.get("validator") {
+                                  Nil => {
+                                    openVpDispute!(s, who, [s.get("proposer")], caseReq,
+                                                   *dId2, *ret2)
+                                  }
+                                  v => {
+                                    openVpDispute!(s, who, [s.get("proposer"), v], caseReq,
+                                                   *dId2, *ret2)
+                                  }
+                                }
+                              }
+                              (true, true, _) => {
+                                vpState!(s) | ret2!((false, "already disputed"))
+                              }
+                              _ => { vpState!(s) | ret2!((false, "not a party")) }
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract ValueProposition(@"revocation", ret2) = {
+                      for (@s <<- vpState) { ret2!((true, s.get("revocation"))) }
+                    } |
+
+                    contract vpApplyGate(@s, @d, @caseId, @decision, ret2) = {
+                      match (d.get("id") == caseId, s.get("status") == "disputed") {
+                        (false, _) => { vpState!(s) | ret2!((false, "case mismatch")) }
+                        (true, false) => { vpState!(s) | ret2!((false, "not disputed")) }
+                        (true, true) => { vpApplyOutcome!(s, decision, *ret2) }
+                        _ => { vpState!(s) | ret2!((false, "case mismatch")) }
+                      }
+                    } |
+
+                    contract vpApplyOutcome(@s, @decision, ret2) = {
+                      new osCh in {
+                        outcomeStatus!(decision.get("outcome"), *osCh) |
+                        for (@status <- osCh) {
+                          match status {
+                            Nil => { vpState!(s) | ret2!((false, "outcome")) }
+                            target => {
+                              vpState!(s.set("status", target)
+                                        .set("revocation", decision)
+                                        .set("version", s.get("version") + 1)) |
+                              ret2!((true, target))
+                            }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract Apply(@"applyDecision", @caseId, @decision, ret2) = {
+                      for (@s <- vpState) {
+                        match s.get("dispute") {
+                          Nil => { vpState!(s) | ret2!((false, "no dispute")) }
+                          d => { vpApplyGate!(s, d, caseId, decision, *ret2) }
+                        }
+                      }
+                    } |
+
+                    contract Apply(@"expireCase", @caseId, ret2) = {
+                      for (@s <- vpState) { vpExpireCase!(s, caseId, *ret2) }
+                    } |
+
+                    contract vpExpireCase(@s, @caseId, ret2) = {
+                      match s.get("dispute") {
+                        Nil => { vpState!(s) | ret2!((false, "no dispute")) }
+                        d => {
+                          if (d.get("id") != caseId) {
+                            vpState!(s) | ret2!((false, "case mismatch"))
+                          } else {
+                            if (s.get("status") != "disputed") {
+                              vpState!(s) | ret2!((true, "already"))
+                            } else { vpExpireStatus!(s, d, *ret2) }
+                          }
+                        }
+                      }
+                    } |
+
+                    contract vpExpireStatus(@s, @d, ret2) = {
+                      match s.get("disputePrevStatus") {
+                        Nil => { vpExpireDo!(s, d, "proposed", *ret2) }
+                        p => { vpExpireDo!(s, d, p, *ret2) }
+                      }
+                    } |
+
+                    contract vpExpireDo(@s, @d, @prev, ret2) = {
+                      vpState!(s.set("status", prev)
+                                .set("dispute", d.set("status", "expired"))
+                                .set("version", s.get("version") + 1)) |
+                      ret2!((true, prev))
+                    } |
+
+                    rs!(bundle+{*ValueProposition}, *uriCh) |
+                    for (@uri <- uriCh) {
+                      for (@s2 <- vpState) {
+                        vpState!(s2.set("uri", uri)) |
+                        for (@r <- vpRegistryState) {
+                          vpRegistryState!(r.set(uri.toString(), {
+                            "uri": uri,
+                            "proposer": proposer,
+                            "subjectRef": req.get("subjectRef"),
+                            "statementHash": req.get("statementHash"),
+                            "quantity": req.get("quantity"),
+                            "quality": req.get("quality"),
+                            "variance": req.get("variance")
+                          })) |
+                          ret!((true, {"id": uri, "uri": uri}))
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      rs!(bundle+{*ValuePropositionFactory}, *cFactory) |
+      for (@uri <- cFactory) {
+        Root!("register", "component:value-proposition-factory", uri, 1, "value",
+              *deployerId, *ack1) |
+        for (@r <- ack1) { deployId!([("value-proposition-factory", uri)]) }
+      }
+      }
+      }
+      }
+      }
+    _ => { Nil }
+      }
+      }
+    }
+  }
+}

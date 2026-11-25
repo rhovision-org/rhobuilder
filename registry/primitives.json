@@ -20,13 +20,23 @@
       "kind": "accounts",
       "component": "component:account-factory",
       "state": null,
-      "arms": ["getOrCreate"],
+      "arms": [
+        "getOrCreate"
+      ],
       "source": "contracts/src/core/AccountFactory.rho",
       "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
       "networks": {
-        "devnet": { "verified": "unverified" },
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y"
+        },
         "testnet": {
           "verified": "candidate",
           "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo",
@@ -40,14 +50,30 @@
       "kind": "payments",
       "component": "component:transfer-book",
       "state": "transferBookState",
-      "arms": ["transferNow", "bookAmount", "claim", "refund"],
+      "arms": [
+        "transferNow",
+        "bookAmount",
+        "claim",
+        "refund"
+      ],
       "source": "contracts/src/deploy/v3/40_transfer.rho",
       "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
       "networks": {
-        "devnet": { "verified": "unverified" },
-        "testnet": { "verified": "candidate", "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo" }
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y"
+        },
+        "testnet": {
+          "verified": "candidate",
+          "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo"
+        }
       }
     },
     {
@@ -56,13 +82,23 @@
       "kind": "accounts",
       "component": "component:asset-resolver",
       "state": null,
-      "arms": ["asset"],
+      "arms": [
+        "asset"
+      ],
       "source": "contracts/src/deploy/v3/14_asset_resolver.rho",
       "pinnedCommit": "49b441dea4f5561992387ed670ab263fcd5dd164",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
       "networks": {
-        "devnet": { "verified": "unverified" },
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y"
+        },
         "testnet": {
           "verified": "candidate",
           "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo"
@@ -75,12 +111,32 @@
       "kind": "escrow",
       "component": "component:policy-factory",
       "state": "policyState",
-      "arms": ["create", "openClaim", "settleClaim", "distribute", "expire", "info"],
+      "arms": [
+        "create",
+        "openClaim",
+        "settleClaim",
+        "distribute",
+        "expire",
+        "info"
+      ],
       "source": "contracts/src/deploy/17_policy.rho",
       "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rsure.slip",
@@ -88,12 +144,30 @@
       "kind": "escrow",
       "component": "component:slip-factory",
       "state": "slipState",
-      "arms": ["fundPremium", "bind", "expire", "info"],
+      "arms": [
+        "fundPremium",
+        "bind",
+        "expire",
+        "info"
+      ],
       "source": "contracts/src/deploy/13_slip.rho",
       "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rsure.distribution",
@@ -101,12 +175,31 @@
       "kind": "escrow",
       "component": "component:distribution-factory",
       "state": "distState",
-      "arms": ["create", "run", "paid", "plan", "info"],
+      "arms": [
+        "create",
+        "run",
+        "paid",
+        "plan",
+        "info"
+      ],
       "source": "contracts/src/deploy/15_distribution.rho",
       "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rsure.claim",
@@ -114,12 +207,33 @@
       "kind": "insurance-claim",
       "component": "component:claim-factory",
       "state": "claimState",
-      "arms": ["create", "classify", "assess", "agree", "dispute", "settle", "info"],
+      "arms": [
+        "create",
+        "classify",
+        "assess",
+        "agree",
+        "dispute",
+        "settle",
+        "info"
+      ],
       "source": "contracts/src/deploy/18_claim.rho",
       "pinnedCommit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rgen.claim",
@@ -127,12 +241,29 @@
       "kind": "knowledge-claim",
       "component": "component:claim-factory",
       "state": "claimState",
-      "arms": ["create", "validate", "get"],
+      "arms": [
+        "create",
+        "validate",
+        "get"
+      ],
       "source": "contracts/src/deploy/20_claim.rho",
       "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rgen.kasset",
@@ -140,13 +271,31 @@
       "kind": "provenance",
       "component": null,
       "state": null,
-      "arms": ["get", "nest", "openDispute", "applyDecision"],
+      "arms": [
+        "get",
+        "nest",
+        "openDispute",
+        "applyDecision"
+      ],
       "source": "contracts/src/lib/KAsset.rho",
       "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
       "note": "minted only by Claim.validate; not a public factory",
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rgen.provenance",
@@ -154,12 +303,31 @@
       "kind": "provenance",
       "component": "component:provenance-factory",
       "state": "pState",
-      "arms": ["createBound", "get", "anchors", "anchor", "verify"],
+      "arms": [
+        "createBound",
+        "get",
+        "anchors",
+        "anchor",
+        "verify"
+      ],
       "source": "contracts/src/deploy/40_provenance.rho",
       "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rgen.identity-directory",
@@ -167,12 +335,27 @@
       "kind": "identity",
       "component": "component:identity-directory",
       "state": "identityState",
-      "arms": ["get"],
+      "arms": [
+        "get"
+      ],
       "source": "contracts/src/deploy/10_identity.rho",
       "pinnedCommit": "bcc840c25e334048bef390823a21aaf7e209d15b",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rshare.booking",
@@ -180,12 +363,31 @@
       "kind": "booking",
       "component": "component:booking-factory",
       "state": "bookingState",
-      "arms": ["create", "hold", "confirm", "settle", "refund"],
+      "arms": [
+        "create",
+        "hold",
+        "confirm",
+        "settle",
+        "refund"
+      ],
       "source": "contracts/src/deploy/22_booking_contract.rho",
       "pinnedCommit": "TBD-review-required",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rshare.listing",
@@ -193,12 +395,30 @@
       "kind": "booking",
       "component": "component:listing-contract-factory",
       "state": "listingState",
-      "arms": ["create", "acquire", "release", "info"],
+      "arms": [
+        "create",
+        "acquire",
+        "release",
+        "info"
+      ],
       "source": "contracts/src/deploy/14_listing_contract.rho",
       "pinnedCommit": "TBD-review-required",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rprint.publication",
@@ -206,12 +426,31 @@
       "kind": "publication",
       "component": "component:publication-factory",
       "state": "publicationState",
-      "arms": ["create", "addMember", "setRole", "pause", "info"],
+      "arms": [
+        "create",
+        "addMember",
+        "setRole",
+        "pause",
+        "info"
+      ],
       "source": "contracts/src/deploy/10_publication.rho",
       "pinnedCommit": "TBD-review-required",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rprint.commission-escrow",
@@ -219,13 +458,32 @@
       "kind": "escrow",
       "component": "component:commission-escrow-factory",
       "state": "commissionEscrowState",
-      "arms": ["createFunded", "release", "cancel", "expire", "resolveDispute"],
+      "arms": [
+        "createFunded",
+        "release",
+        "cancel",
+        "expire",
+        "resolveDispute"
+      ],
       "source": "contracts/src/deploy/21_commission_escrow.rho",
       "pinnedCommit": "TBD-review-required",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
       "note": "r-print's baseline escrow; r-sure remains the open-insurance primitive",
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "networks": {
+        "devnet": {
+          "verified": "manifest",
+          "root": "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     },
     {
       "id": "rbridge.bridge",
@@ -233,26 +491,87 @@
       "kind": "bridge",
       "component": null,
       "state": "bridgeLedger",
-      "arms": ["bridgeMintCore", "bridgeFinishBurn", "balanceOf", "feeOf"],
+      "arms": [
+        "bridgeMintCore",
+        "bridgeFinishBurn",
+        "balanceOf",
+        "feeOf"
+      ],
       "source": "contracts/rholo/src/deploy/00_bridge.rho",
       "pinnedCommit": "TBD-review-required",
       "status": "tested",
-      "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
-      "networks": { "devnet": { "verified": "unverified" }, "testnet": { "verified": "missing" } }
+      "policy": {
+        "reuse": "preferred",
+        "extension": [
+          "adapter-only"
+        ]
+      },
+      "networks": {
+        "devnet": {
+          "verified": "unverified"
+        },
+        "testnet": {
+          "verified": "missing"
+        }
+      }
     }
   ],
   "vertices": [
-    { "id": "account", "owner": "r-cash", "kind": "record" },
-    { "id": "purse", "owner": "r-cash", "kind": "capability" },
-    { "id": "policy", "owner": "r-sure", "kind": "cell" },
-    { "id": "slip", "owner": "r-sure", "kind": "cell" },
-    { "id": "rgen_claim", "owner": "r-gen", "kind": "cell" },
-    { "id": "kasset", "owner": "r-gen", "kind": "cell" },
-    { "id": "provenance", "owner": "r-gen", "kind": "cell" },
-    { "id": "listing", "owner": "r-share", "kind": "cell" },
-    { "id": "booking", "owner": "r-share", "kind": "cell" },
-    { "id": "publication", "owner": "r-print", "kind": "cell" },
-    { "id": "bridge", "owner": "r-bridge", "kind": "cell" }
+    {
+      "id": "account",
+      "owner": "r-cash",
+      "kind": "record"
+    },
+    {
+      "id": "purse",
+      "owner": "r-cash",
+      "kind": "capability"
+    },
+    {
+      "id": "policy",
+      "owner": "r-sure",
+      "kind": "cell"
+    },
+    {
+      "id": "slip",
+      "owner": "r-sure",
+      "kind": "cell"
+    },
+    {
+      "id": "rgen_claim",
+      "owner": "r-gen",
+      "kind": "cell"
+    },
+    {
+      "id": "kasset",
+      "owner": "r-gen",
+      "kind": "cell"
+    },
+    {
+      "id": "provenance",
+      "owner": "r-gen",
+      "kind": "cell"
+    },
+    {
+      "id": "listing",
+      "owner": "r-share",
+      "kind": "cell"
+    },
+    {
+      "id": "booking",
+      "owner": "r-share",
+      "kind": "cell"
+    },
+    {
+      "id": "publication",
+      "owner": "r-print",
+      "kind": "cell"
+    },
+    {
+      "id": "bridge",
+      "owner": "r-bridge",
+      "kind": "cell"
+    }
   ],
   "edges": [
     {
@@ -261,7 +580,10 @@
       "from": "booking",
       "to": "account",
       "kind": "call",
-      "arms": ["Payments.ensureAccount", "Payments.depositFacet"],
+      "arms": [
+        "Payments.ensureAccount",
+        "Payments.depositFacet"
+      ],
       "source": "RShare/contracts/src/deploy/40_payments.rho",
       "status": "implemented"
     },
@@ -271,7 +593,9 @@
       "from": "publication",
       "to": "purse",
       "kind": "call",
-      "arms": ["CommissionEscrowFactory.createFunded"],
+      "arms": [
+        "CommissionEscrowFactory.createFunded"
+      ],
       "source": "RPrint/contracts/src/deploy/21_commission_escrow.rho",
       "status": "implemented"
     },
@@ -281,7 +605,10 @@
       "from": "publication",
       "to": "policy",
       "kind": "call",
-      "arms": ["CommissionProposal.attachCover", "RsureAdapter.policy"],
+      "arms": [
+        "CommissionProposal.attachCover",
+        "RsureAdapter.policy"
+      ],
       "source": "RPrint/contracts/src/deploy/06_rsure.rho",
       "status": "implemented",
       "optional": true
@@ -292,7 +619,10 @@
       "from": "publication",
       "to": "provenance",
       "kind": "call",
-      "arms": ["Article.attachKnowledge", "RgenAdapter.verify"],
+      "arms": [
+        "Article.attachKnowledge",
+        "RgenAdapter.verify"
+      ],
       "source": "RPrint/contracts/src/deploy/05_rgen.rho",
       "status": "implemented",
       "optional": true
@@ -303,7 +633,10 @@
       "from": "policy",
       "to": "account",
       "kind": "call",
-      "arms": ["Policy.settleClaim", "Payments.ensureAccount"],
+      "arms": [
+        "Policy.settleClaim",
+        "Payments.ensureAccount"
+      ],
       "source": "RSure/contracts/src/deploy/17_policy.rho",
       "status": "implemented"
     }

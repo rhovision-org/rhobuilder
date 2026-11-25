@@ -1,0 +1,503 @@
+{
+  "schema": "rhobuilder.install-manifest/v1",
+  "network": "devnet",
+  "networkId": "testnet",
+  "shardId": "/root",
+  "apps": {
+    "r-cash": {
+      "commit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y",
+      "status": "verified",
+      "steps": {
+        "00_root": {
+          "uris": [
+            "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y"
+          ],
+          "uriMap": {}
+        },
+        "01_kernel": {
+          "uris": [
+            "rho:id:bzh5bes3aif71n73k6tzuxoeh9gwtxkne75gsguhxx1ktnhpdb3o",
+            "rho:id:rqncmcmwwxkq6tp7uosgbnh85cr7o4hjqcydqe4bt1r6r6wgbsuo",
+            "rho:id:5irxcawa37fyzmccbbkwjosru6sbmbdtxm4kzwy1wxtatyixed1y"
+          ],
+          "uriMap": {}
+        },
+        "02_bounds": {
+          "uris": [
+            "rho:id:uj7az685xp6jqzbbjet6b11nchczs6q9d5qz5xii5hpzgyju39yy"
+          ],
+          "uriMap": {}
+        },
+        "03_admin_guard": {
+          "uris": [
+            "rho:id:n1hc76u5hbn1f3fg9ycc76dcgbsazt6foujk9dfk7uu44ofyohco"
+          ],
+          "uriMap": {}
+        },
+        "04_governor": {
+          "uris": [
+            "rho:id:xaehorsk8ogpf83xtdxu5af4tkuw4bf5ao7yayresinmn9fcuipo"
+          ],
+          "uriMap": {}
+        },
+        "05_amm_math": {
+          "uris": [
+            "rho:id:gyhthxtqm5yj7btjbnxsrnmyke3ym6q9ykgqttmoj4sz47hren5o"
+          ],
+          "uriMap": {}
+        },
+        "06_collateral_math": {
+          "uris": [
+            "rho:id:z5j54pwcze5erg53jxw7ohu9jfdcgmua388p3cj8kqa5be9c88io"
+          ],
+          "uriMap": {}
+        },
+        "07_oracle_math": {
+          "uris": [
+            "rho:id:1fjujdnt5h9pgx85deq55o56p7a6oc786ihxrw5g38oao6uau77y"
+          ],
+          "uriMap": {}
+        },
+        "08_claim_code": {
+          "uris": [
+            "rho:id:qxxq313uicxmrdze9mp8a3ohdjrnsu4uixawmwpupreh3mbumf9y"
+          ],
+          "uriMap": {}
+        },
+        "09_identity": {
+          "uris": [
+            "rho:id:drxryk8u6t55ao7inet51no3eodtwompdgbnzyrckfidait7zfso"
+          ],
+          "uriMap": {}
+        },
+        "12_oracle_registry": {
+          "uris": [
+            "rho:id:kut557ktpe7eobenwjie7z1rh4793hhhu6nngjk75cuzqy117s4o"
+          ],
+          "uriMap": {}
+        },
+        "13_oracle_hub": {
+          "uris": [
+            "rho:id:ist54qwh3p7494iuj6zq8mfdx9pphm4y7fkcerhrk3qb7kjxs3ro"
+          ],
+          "uriMap": {}
+        },
+        "14_asset_resolver": {
+          "uris": [
+            "rho:id:37tdympjjyuc91odbtarz7pwk1fbkefiquc9j8ghgmq3ibsrr63y"
+          ],
+          "uriMap": {}
+        },
+        "32_currency_registry": {
+          "uris": [
+            "rho:id:j8wa61hxnau4mam4p8difyd7161ease9ejq3x6f17mz6hbwsr8oo",
+            "rho:id:cx6xqt14gbp8uun57rd7drae76own3h4tqxfp6yorbg747bbthio"
+          ],
+          "uriMap": {
+            "rho:id:j8wa61hxnau4mam4p8difyd7161ease9ejq3x6f17mz6hbwsr8oo": "rho:id:cx6xqt14gbp8uun57rd7drae76own3h4tqxfp6yorbg747bbthio"
+          }
+        },
+        "40_transfer": {
+          "uris": [
+            "rho:id:zkxftiybykonpwg5g3jfzbqbj9kutpbenndwsswjrnf7fop1sd6y"
+          ],
+          "uriMap": {}
+        }
+      }
+    },
+    "r-gen": {
+      "commit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy",
+      "status": "verified",
+      "steps": {
+        "00_root": {
+          "uris": [
+            "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy"
+          ],
+          "uriMap": {}
+        },
+        "10_identity": {
+          "uris": [
+            "identity-factory",
+            "rho:id:7eicqxrorfaxtupdw1aroskctn5bkzpij4fpjty53dbuj4gxdfgo",
+            "identity-directory",
+            "rho:id:negyncniucfy155iba11heo3kz1bxu456tq56nqdi4i4gt9s67py"
+          ],
+          "uriMap": {
+            "identity-directory": "rho:id:negyncniucfy155iba11heo3kz1bxu456tq56nqdi4i4gt9s67py",
+            "identity-factory": "rho:id:7eicqxrorfaxtupdw1aroskctn5bkzpij4fpjty53dbuj4gxdfgo"
+          }
+        },
+        "11_credentials": {
+          "uris": [
+            "issuer",
+            "rho:id:jzsjyxyiefcywz8c48wsne7nj9i4m5og6x4kkf86jkg3o9zp8ogo",
+            "credential-factory",
+            "rho:id:ihsbwwiqu1hajazt559h8ey5ht4dorbmghoao7jtcfknuktrwp6y"
+          ],
+          "uriMap": {
+            "credential-factory": "rho:id:ihsbwwiqu1hajazt559h8ey5ht4dorbmghoao7jtcfknuktrwp6y",
+            "issuer": "rho:id:jzsjyxyiefcywz8c48wsne7nj9i4m5og6x4kkf86jkg3o9zp8ogo"
+          }
+        },
+        "20_claim": {
+          "uris": [
+            "claim-factory",
+            "rho:id:yc54cog134uubeoik6fj7hxmmixtsnfmst877ay1xffubqnqatky"
+          ],
+          "uriMap": {
+            "claim-factory": "rho:id:yc54cog134uubeoik6fj7hxmmixtsnfmst877ay1xffubqnqatky"
+          }
+        },
+        "22_value": {
+          "uris": [
+            "value-proposition-factory",
+            "rho:id:oi8rraagmj8j6nnzp6fxofijucbro4o6zyfup89of9mpnhuakuio"
+          ],
+          "uriMap": {
+            "value-proposition-factory": "rho:id:oi8rraagmj8j6nnzp6fxofijucbro4o6zyfup89of9mpnhuakuio"
+          }
+        },
+        "30_oracle": {
+          "uris": [
+            "oracle-factory",
+            "rho:id:hqn51313n1cfd4rnug1cmh6hqjni4zau58yap3b11ycwor9omhty"
+          ],
+          "uriMap": {
+            "oracle-factory": "rho:id:hqn51313n1cfd4rnug1cmh6hqjni4zau58yap3b11ycwor9omhty"
+          }
+        },
+        "40_provenance": {
+          "uris": [
+            "provenance-factory",
+            "rho:id:fs18pdfbegdmj1hgijuzptriqieeu1upqb9g1zba4zqzpp334d3y"
+          ],
+          "uriMap": {
+            "provenance-factory": "rho:id:fs18pdfbegdmj1hgijuzptriqieeu1upqb9g1zba4zqzpp334d3y"
+          }
+        }
+      }
+    },
+    "r-share": {
+      "commit": "7114acbabba31d3575c7c858c74f393755c91404",
+      "root": "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy",
+      "status": "verified",
+      "steps": {
+        "00_root": {
+          "uris": [
+            "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy"
+          ],
+          "uriMap": {}
+        },
+        "01_kernel": {
+          "uris": [
+            "rho:id:1p5awrw7j4hmkue8tz55364e4b51uhu6gpapsjicdwmx3ca9r6iy",
+            "rho:id:eu99wkftmjtoojrisuhboen3xeii6cmoe4caqqdjmrrn6fzydwby",
+            "rho:id:kybdxoy9yyujgu4q4byyadb994fg4i1ngq1ubyxq3zj6bn5bk9zy"
+          ],
+          "uriMap": {}
+        },
+        "02_admin": {
+          "uris": [
+            "rho:id:8qwfkd1yy38z63efobet6tehnrqqc6rktedafo13eeggak9x5hro",
+            "rho:id:maxphmunrqg8a8m97s5hhisto1d1g19czrjkpoq885688x7t8hjy"
+          ],
+          "uriMap": {
+            "rho:id:8qwfkd1yy38z63efobet6tehnrqqc6rktedafo13eeggak9x5hro": "rho:id:maxphmunrqg8a8m97s5hhisto1d1g19czrjkpoq885688x7t8hjy"
+          }
+        },
+        "03_terms": {
+          "uris": [
+            "rho:id:fqoiof939b97ew1t7ag7myc1dj8n1xafd6xiy9ftpsx4987bxono"
+          ],
+          "uriMap": {}
+        },
+        "04_remedy": {
+          "uris": [
+            "rho:id:zurqphutzyq794iqa1xzo38ds1zoqa4joxnr6p6z496i857oxc5y"
+          ],
+          "uriMap": {}
+        },
+        "10_provider": {
+          "uris": [
+            "rho:id:47umacrdsoi94qc1aiz5i5erojg3bdgutisigopzyu19qzymzo7y"
+          ],
+          "uriMap": {}
+        },
+        "13_unit": {
+          "uris": [
+            "rho:id:japn1k3bd7oorwqkeubrp59f156hbwwad45zdzxtojahjy9xyoqy"
+          ],
+          "uriMap": {}
+        },
+        "14_listing_contract": {
+          "uris": [
+            "rho:id:ics9hmq8e8ttngu74sqw69zxs5iqfo47jicwjjbx8xyiat7fthhy"
+          ],
+          "uriMap": {}
+        },
+        "15_bond": {
+          "uris": [
+            "rho:id:hs73tnhqriz4fpst3nm19qft7p6r9c1t5fsogx4hsn7ob35mrcay"
+          ],
+          "uriMap": {}
+        },
+        "20_booking": {
+          "uris": [
+            "rho:id:d9xxemcqp8ihyqsyzxkd49rsik5upixqgt4oar9zfzj6fdcrqxxy"
+          ],
+          "uriMap": {}
+        },
+        "22_booking_contract": {
+          "uris": [
+            "rho:id:hjbw5x5r7oe5hbzw5xu99ifin1nfeu7nax88ishzzufkk4ukufoy"
+          ],
+          "uriMap": {}
+        },
+        "23_guest_ledger": {
+          "uris": [
+            "rho:id:wo14crb73g9xmf5z37n3i7g9o3da1f4abghrr35dy59eud9yd7qy"
+          ],
+          "uriMap": {}
+        },
+        "34_booking_instance": {
+          "uris": [
+            "rho:id:6i9b81jqgyh7j4b44kkm6trf6k73o8fqd4cfm3pzwskmwktmws5y"
+          ],
+          "uriMap": {}
+        },
+        "40_payments": {
+          "uris": [
+            "rho:id:fjxp4tswij4b8x4a3cbaei5uc16frkfmxbaccwzhx6485839ifzy"
+          ],
+          "uriMap": {}
+        },
+        "41_hold_deposit": {
+          "uris": [
+            "rho:id:9wmmtmtkqn3cbetkhgkuce7kjzyt7yfzf54tbae8ck7ju71jwfbo"
+          ],
+          "uriMap": {}
+        }
+      }
+    },
+    "r-sure": {
+      "commit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby",
+      "status": "verified",
+      "steps": {
+        "00_root": {
+          "uris": [
+            "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby"
+          ],
+          "uriMap": {}
+        },
+        "01_kernel": {
+          "uris": [
+            "rho:id:osz1yazt19qrrw851mdjzbdg3gyetz3zfqa78wkks3b6wwwkoyey",
+            "rho:id:t7aas3ggr6a6x7urf9znx7scp1ssphxujxpcg9kje6xeojnm91jy",
+            "rho:id:gwc86675ikzfzu8dbw13c196be531h6bk99ttupgyfwt8iwcxsfo"
+          ],
+          "uriMap": {}
+        },
+        "02_admin": {
+          "uris": [
+            "rho:id:dggf9mq5qfpmizjgm6fft19bgkcw96ox9d3cr5or4euzbfn8yuqo",
+            "rho:id:cxu8nk6i95fkucbtwjpto138ugy8ogqcd3bbj6ar1abb8mrcrnsy"
+          ],
+          "uriMap": {
+            "rho:id:dggf9mq5qfpmizjgm6fft19bgkcw96ox9d3cr5or4euzbfn8yuqo": "rho:id:cxu8nk6i95fkucbtwjpto138ugy8ogqcd3bbj6ar1abb8mrcrnsy"
+          }
+        },
+        "03_terms": {
+          "uris": [
+            "rho:id:3es1nn3qqzk7cazfepfjeg5xxgg14bbyznw4o3m338iyotfiam1y"
+          ],
+          "uriMap": {}
+        },
+        "04_math": {
+          "uris": [
+            "rho:id:iwzp9b8s8a17btz61t4m1wj6qyfstgcwpxf1nady5fyqu4c4qiao"
+          ],
+          "uriMap": {}
+        },
+        "05_rgen": {
+          "uris": [
+            "rho:id:mcgdycfyqdnuwhzuthhbx3ebkq63gnjucmgudkmrx5wjpiwpyneo"
+          ],
+          "uriMap": {}
+        },
+        "10_syndicate": {
+          "uris": [
+            "rho:id:acm54p59nipb3kfnchugm1tqwgrhcfhhb7fprcada9g46mnbbeoo"
+          ],
+          "uriMap": {}
+        },
+        "11_broker": {
+          "uris": [
+            "rho:id:qmr91hoeusqd8b6nyjymdpj1rwq5kstute9thoikeyjbk3fjrkwo"
+          ],
+          "uriMap": {}
+        },
+        "12_risk": {
+          "uris": [
+            "rho:id:71czhcjadxcixqaifkjcbkhz3pm4b8oikk6shmk1wquubyxprp4y"
+          ],
+          "uriMap": {}
+        },
+        "13_slip": {
+          "uris": [
+            "rho:id:yrxo1fa4937c7mi6ia44ujz6gujtpg8om1tges5rc8qzyxr4qsny"
+          ],
+          "uriMap": {}
+        },
+        "14_line": {
+          "uris": [
+            "rho:id:iriznuzq66b39jddoasosetizzuwted1utjb4pctt9ukhqmofkpo"
+          ],
+          "uriMap": {}
+        },
+        "15_distribution": {
+          "uris": [
+            "rho:id:56zinwd75mo9ewwuaw1phgp4c9nqmxuzqe1ecm3wbqkmn81d595y"
+          ],
+          "uriMap": {}
+        },
+        "16_fund": {
+          "uris": [
+            "rho:id:yr983qg7n6xun989ntretufzg3xnmfbeq7epp7bt16oca63qx14o"
+          ],
+          "uriMap": {}
+        },
+        "17_policy": {
+          "uris": [
+            "rho:id:mo55sdjjp1eoh4rb5chuzi799zcbhpwmoa4nxy3mxumkwjiz1hby"
+          ],
+          "uriMap": {}
+        },
+        "18_claim": {
+          "uris": [
+            "rho:id:sb83fdo8g79g1rjfdi3azd9bz1u7qqn5at3uckd76s88gyzkzq5o"
+          ],
+          "uriMap": {}
+        },
+        "19_books": {
+          "uris": [
+            "rho:id:kyq3whdo919u551ojh68fy5bqt7s1cfz5wo6qa6mufmykjwmtjho",
+            "rho:id:7hhykyo34q7w79p418fj8515pn9suezq8ztsftdpg78kbtpcoc4o",
+            "rho:id:ekmo6rapqbnsbga9frkfuwhpuck6qoa5638iatx1hemf8bu88oko"
+          ],
+          "uriMap": {}
+        },
+        "40_payments": {
+          "uris": [
+            "rho:id:e754syb1tsbncmed1ehkunz4bkz533p8uh5uk66oij5h9szqa3do"
+          ],
+          "uriMap": {}
+        }
+      }
+    },
+    "r-print": {
+      "commit": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+      "root": "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by",
+      "status": "verified",
+      "steps": {
+        "00_root": {
+          "uris": [
+            "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by"
+          ],
+          "uriMap": {}
+        },
+        "01_kernel": {
+          "uris": [
+            "rho:id:shegnnhb58jcueupqsn76i3zsdiqndjsnrubrptiu5paiz66zkoy",
+            "rho:id:57ph1h9dif4ggezqxmcwpi91oq75wi34m8qq1kq17iujuahiqr8o",
+            "rho:id:gpgcfoyaxq818yn7rko8uk7dbemjwbdnytrd88fdqzwo8mh67xyy"
+          ],
+          "uriMap": {}
+        },
+        "02_admin": {
+          "uris": [
+            "rho:id:ty67dcnghy85woz83gcdft9mhfn87fhz7atqcrfqcouwhqp94mao",
+            "rho:id:gjjtk57q3pqh1axodpjnxyz3jwb993und85bm4aox1p3yh4e4ogo"
+          ],
+          "uriMap": {
+            "rho:id:ty67dcnghy85woz83gcdft9mhfn87fhz7atqcrfqcouwhqp94mao": "rho:id:gjjtk57q3pqh1axodpjnxyz3jwb993und85bm4aox1p3yh4e4ogo"
+          }
+        },
+        "03_terms": {
+          "uris": [
+            "rho:id:quogcmbth9qdo151c5qnp5dwgqyn99rpudfzpuwcasjpekc4wk9y"
+          ],
+          "uriMap": {}
+        },
+        "05_rgen": {
+          "uris": [
+            "rho:id:m4wrr6bp6phmxpddgshbn6h3c444zbjixch7cwu1wo7y9xxa3pdy"
+          ],
+          "uriMap": {}
+        },
+        "06_rsure": {
+          "uris": [
+            "rho:id:a4ygz5cgfip73ygxutesdhga1s54izti7hh3dtjspn1aqkkr59ay"
+          ],
+          "uriMap": {}
+        },
+        "10_publication": {
+          "uris": [
+            "rho:id:8grhd9191jsgubxgt14mpkp1uhh7rpeai14e4i6iscon49aco8xo"
+          ],
+          "uriMap": {}
+        },
+        "11_publication_cell": {
+          "uris": [
+            "rho:id:q7p8zc1k3ig3a7rorph14fym99rtjmeecx6i18dcwit4zs3xaxhy"
+          ],
+          "uriMap": {}
+        },
+        "20_commission": {
+          "uris": [
+            "rho:id:fgm37acdjh9q7mr3pmwqsqa7d77izmrh4u9b1rp9ir3e9qbgo5jy"
+          ],
+          "uriMap": {}
+        },
+        "21_commission_escrow": {
+          "uris": [
+            "rho:id:onrfbg5fjoyp1j7t653eeotrkyehg8u9oagxcw14fah8cqx98c1y"
+          ],
+          "uriMap": {}
+        },
+        "30_article": {
+          "uris": [
+            "rho:id:pj4gd54au8n9ew74tx75gns3irq75teg9zx7qwnikrkn1updwaso"
+          ],
+          "uriMap": {}
+        },
+        "31_edition": {
+          "uris": [
+            "rho:id:s8siz4akbbszo5pb5u384w9psugfng8fm9ajpuamxk6pqcbporqo"
+          ],
+          "uriMap": {}
+        },
+        "32_coordination": {
+          "uris": [
+            "rho:id:xzj9ybwpayjp8u8nsq7x5mashkbn1qi3g73wnw7twjoh75bc98ro"
+          ],
+          "uriMap": {}
+        },
+        "33_coordination_cell": {
+          "uris": [
+            "rho:id:t1z8rutrdtdm7ppcussj6adr5howafqduifjihjhtumuwdstxjry"
+          ],
+          "uriMap": {}
+        },
+        "40_payments": {
+          "uris": [
+            "rho:id:h5z5hwjyaw15xyre1jma54h8jqtknww4zuhj78w7489e5e1fdk5o"
+          ],
+          "uriMap": {}
+        }
+      }
+    }
+  }
+}

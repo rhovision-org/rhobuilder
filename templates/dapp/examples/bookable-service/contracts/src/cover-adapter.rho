@@ -1,0 +1,34 @@
+// __app_name__ r-sure cover adapter.
+// Reads the r-sure policy and claim factories. Attaching a policy is a read-and-link
+// operation; the app does not redeploy r-sure.
+new rl(`rho:registry:lookup`), rs(`rho:registry:insertArbitrary`),
+    deployId(`rho:rchain:deployId`), CoverAdapter, uriCh, resolveKey in {
+  contract resolveKey(@key, ret) = {
+    new rootCh, entryCh in {
+      rl!(`__RSURE_ROOT_URI__`, *rootCh) |
+      for (Root <- rootCh) {
+        Root!("resolve", key, 1, *entryCh) |
+        for (@entry <- entryCh) { ret!(entry) }
+      }
+    }
+  } |
+
+  contract CoverAdapter(@"health", ret) = {
+    new policyCh, claimCh in {
+      resolveKey!("component:policy-factory", *policyCh) |
+      resolveKey!("component:claim-factory", *claimCh) |
+      for (@policy <- policyCh; @claim <- claimCh) {
+        ret!((true, policy, claim))
+      }
+    }
+  } |
+
+  contract CoverAdapter(@"policyFactory", ret) = {
+    resolveKey!("component:policy-factory", *ret)
+  } |
+
+  rs!(bundle+{*CoverAdapter}, *uriCh) |
+  for (@adapterUri <- uriCh) {
+    deployId!([adapterUri])
+  }
+}

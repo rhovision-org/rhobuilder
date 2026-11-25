@@ -11,6 +11,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+INSTALL_PLACEHOLDERS = {
+    "__DISPUTE_URI__",
+    "__PAYMENTS_URI__",
+    "__BOOKING_ADAPTER_URI__",
+    "__COVER_ADAPTER_URI__",
+    "__RCASH_ROOT_URI__",
+    "__RSHARE_ROOT_URI__",
+    "__RSURE_ROOT_URI__",
+}
+PLACEHOLDER = re.compile(r"__[A-Z][A-Z0-9_]*__")
 
 
 def fail(failures: list[str], message: str) -> None:
@@ -77,8 +87,12 @@ def main() -> int:
             fail(failures, f"{path.relative_to(ROOT)} uses select; committed choice is required")
         if "TODO" in text or "FIXME" in text:
             fail(failures, f"{path.relative_to(ROOT)} contains a TODO/FIXME")
-        if "__" in text:
-            fail(failures, f"{path.relative_to(ROOT)} contains an unresolved placeholder")
+        unknown = sorted(set(PLACEHOLDER.findall(text)) - INSTALL_PLACEHOLDERS)
+        if unknown:
+            fail(
+                failures,
+                f"{path.relative_to(ROOT)} contains unresolved placeholders {unknown}",
+            )
 
     for relative in (
         "spec/graph/vertices.yaml",

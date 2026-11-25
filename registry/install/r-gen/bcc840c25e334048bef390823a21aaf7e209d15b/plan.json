@@ -1,0 +1,119 @@
+{
+  "schema": "rhobuilder.install-plan/v1",
+  "app": "r-gen",
+  "repo": "https://github.com/rhovision-org/r-gen",
+  "commit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+  "sourceRoot": "contracts/build/deploy",
+  "rootKey": "component:root",
+  "resolveArity": 2,
+  "phlo": {
+    "limit": 8000000,
+    "price": 1
+  },
+  "dependencies": [
+    "r-cash"
+  ],
+  "requiredKeys": [
+    "component:root",
+    "component:identity-directory",
+    "component:identity-factory",
+    "component:issuer",
+    "component:credential-factory",
+    "component:oracle-factory",
+    "component:provenance-factory",
+    "component:value-proposition-factory",
+    "component:claim-factory"
+  ],
+  "placeholders": [
+    "__CREDENTIAL_FACTORY_URI__",
+    "__ISSUER_ADDRESS__",
+    "__ORACLE_FACTORY_URI__",
+    "__ROOT_URI__",
+    "__VALUE_PROPOSITION_FACTORY_URI__"
+  ],
+  "steps": [
+    {
+      "name": "00_root",
+      "term": "00_root.rho",
+      "root": true,
+      "placeholders": []
+    },
+    {
+      "name": "10_identity",
+      "term": "10_identity.rho",
+      "captures": [
+        {
+          "placeholder": "__IDENTITY_DIRECTORY_URI__",
+          "from": "map",
+          "key": "identity-directory"
+        }
+      ],
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "11_credentials",
+      "term": "11_credentials.rho",
+      "captures": [
+        {
+          "placeholder": "__CREDENTIAL_FACTORY_URI__",
+          "from": "map",
+          "key": "credential-factory"
+        }
+      ],
+      "placeholders": [
+        "__ISSUER_ADDRESS__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "30_oracle",
+      "term": "30_oracle.rho",
+      "captures": [
+        {
+          "placeholder": "__ORACLE_FACTORY_URI__",
+          "from": "map",
+          "key": "oracle-factory"
+        }
+      ],
+      "placeholders": [
+        "__CREDENTIAL_FACTORY_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "40_provenance",
+      "term": "40_provenance.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "22_value",
+      "term": "22_value.rho",
+      "captures": [
+        {
+          "placeholder": "__VALUE_PROPOSITION_FACTORY_URI__",
+          "from": "map",
+          "key": "value-proposition-factory"
+        }
+      ],
+      "placeholders": [
+        "__CREDENTIAL_FACTORY_URI__",
+        "__ORACLE_FACTORY_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "20_claim",
+      "term": "20_claim.rho",
+      "placeholders": [
+        "__CREDENTIAL_FACTORY_URI__",
+        "__ORACLE_FACTORY_URI__",
+        "__ROOT_URI__",
+        "__VALUE_PROPOSITION_FACTORY_URI__"
+      ]
+    }
+  ]
+}

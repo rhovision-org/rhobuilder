@@ -12,9 +12,12 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 reqwest.workspace = true
+sha2.workspace = true
+rcash-sdk.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
-tokio.workspace = true
+tempfile = "3"
 
 [lints]
 workspace = true

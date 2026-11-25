@@ -597,7 +597,7 @@ def _probe_plugin(args: argparse.Namespace) -> Check:
 def _probe_registry(args: argparse.Namespace) -> Check:
     registry = ROOT / "registry" / "primitives.json"
     if not registry.is_file():
-        return Check("registry", "warn", "registry not implemented yet (P1)")
+        return Check("registry", "warn", "registry/primitives.json is missing")
     try:
         document = json.loads(registry.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:

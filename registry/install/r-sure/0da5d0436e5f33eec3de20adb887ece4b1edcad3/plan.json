@@ -1,0 +1,179 @@
+{
+  "schema": "rhobuilder.install-plan/v1",
+  "app": "r-sure",
+  "repo": "https://github.com/rhovision-org/r-sure",
+  "commit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+  "sourceRoot": "contracts/build",
+  "rootKey": "component:root",
+  "resolveArity": 3,
+  "phlo": {
+    "limit": 4000000,
+    "price": 1
+  },
+  "dependencies": [
+    "r-cash",
+    "r-gen"
+  ],
+  "requiredKeys": [
+    "component:root",
+    "component:clock",
+    "component:codec",
+    "component:verifier",
+    "component:admin",
+    "component:admin-guard",
+    "component:terms",
+    "component:suremath",
+    "component:rgen",
+    "component:syndicate-book",
+    "component:broker-book",
+    "component:risk-book",
+    "component:slip-factory",
+    "component:line-factory",
+    "component:distribution-factory",
+    "component:fund",
+    "component:policy-factory",
+    "component:claim-factory",
+    "component:claim-book",
+    "component:policy-book",
+    "component:variance-signal-book",
+    "component:payments"
+  ],
+  "placeholders": [
+    "__ADMINS__",
+    "__PLATFORM_OWNER__",
+    "__RCASH_ROOT_URI__",
+    "__RGEN_ROOT_URI__",
+    "__ROOT_URI__",
+    "__THRESHOLD__"
+  ],
+  "steps": [
+    {
+      "name": "00_root",
+      "term": "00_root.rho",
+      "root": true,
+      "placeholders": [
+        "__ADMINS__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "01_kernel",
+      "term": "01_kernel.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "02_admin",
+      "term": "02_admin.rho",
+      "placeholders": [
+        "__ADMINS__",
+        "__ROOT_URI__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "03_terms",
+      "term": "03_terms.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "04_math",
+      "term": "04_math.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "05_rgen",
+      "term": "05_rgen.rho",
+      "placeholders": [
+        "__RGEN_ROOT_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "40_payments",
+      "term": "40_payments.rho",
+      "placeholders": [
+        "__PLATFORM_OWNER__",
+        "__RCASH_ROOT_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "15_distribution",
+      "term": "15_distribution.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "16_fund",
+      "term": "16_fund.rho",
+      "placeholders": [
+        "__ADMINS__",
+        "__ROOT_URI__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "10_syndicate",
+      "term": "10_syndicate.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "11_broker",
+      "term": "11_broker.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "12_risk",
+      "term": "12_risk.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "13_slip",
+      "term": "13_slip.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "14_line",
+      "term": "14_line.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "17_policy",
+      "term": "17_policy.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "18_claim",
+      "term": "18_claim.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "19_books",
+      "term": "19_books.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    }
+  ]
+}

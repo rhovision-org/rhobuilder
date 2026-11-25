@@ -1,0 +1,78 @@
+{
+  "schema": "rhobuilder.install-origin/v1",
+  "app": "r-sure",
+  "repo": "https://github.com/rhovision-org/r-sure",
+  "commit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+  "sourceRoot": "contracts/build",
+  "license": "AGPL-3.0-only",
+  "terms": {
+    "00_root.rho": {
+      "path": "contracts/build/00_root.rho",
+      "sha256": "98856781bb6afa8e0176ef14bc385ea3f8c9feda5d09c7e407bea509c593ce88"
+    },
+    "01_kernel.rho": {
+      "path": "contracts/build/01_kernel.rho",
+      "sha256": "f42ca4a6f84397716772b01b1e5e7099fa3b85ec2f58aed48c479888459ff355"
+    },
+    "02_admin.rho": {
+      "path": "contracts/build/02_admin.rho",
+      "sha256": "a3c753e102e5d5eafc05edc9d6355c71f05d13f989d54b4e5af59cecef4b98f8"
+    },
+    "03_terms.rho": {
+      "path": "contracts/build/03_terms.rho",
+      "sha256": "c8c14c1836613af9b956864a915f75d3cd1eb6c50420bb57eae51fb1d50b5d56"
+    },
+    "04_math.rho": {
+      "path": "contracts/build/04_math.rho",
+      "sha256": "e735ed94a10c4ff974002cd48d7d22473cd5d02a7c7dfcfcdbb7734586063ebd"
+    },
+    "05_rgen.rho": {
+      "path": "contracts/build/05_rgen.rho",
+      "sha256": "7814a103775417594148cf48a2c440bd1e1ec5d9db23063f71a2891eadb187f9"
+    },
+    "40_payments.rho": {
+      "path": "contracts/build/40_payments.rho",
+      "sha256": "0ce123fd8847b578fec6d14dd59cbf6e917ceeaafef55e55aed627045ecc0fc7"
+    },
+    "15_distribution.rho": {
+      "path": "contracts/build/15_distribution.rho",
+      "sha256": "baa9603991b4c4a756ee257f9ba2ba7a3b17b0246c90e80bcb2ab6b4c3d27033"
+    },
+    "16_fund.rho": {
+      "path": "contracts/build/16_fund.rho",
+      "sha256": "4f3e6e89a5d1d339703c43cb6340dd2ef4f8fd854475dda8697778597cd70171"
+    },
+    "10_syndicate.rho": {
+      "path": "contracts/build/10_syndicate.rho",
+      "sha256": "d254527f2813bfe499961415262f57be623d66afab034e60148ce2d8e548ca04"
+    },
+    "11_broker.rho": {
+      "path": "contracts/build/11_broker.rho",
+      "sha256": "28cdcc6e11acd607ec93040752fd3516b41cf9ba782f6a91ed1882302b504eab"
+    },
+    "12_risk.rho": {
+      "path": "contracts/build/12_risk.rho",
+      "sha256": "11527257028c9ecf32aea0bec33ccc0be7676e895e93457ec31f9b85f8d80cb4"
+    },
+    "13_slip.rho": {
+      "path": "contracts/build/13_slip.rho",
+      "sha256": "cc829441b57e5cec2d5b1c54f300103bbdd728daa8195d0bd058eb44da3dccfa"
+    },
+    "14_line.rho": {
+      "path": "contracts/build/14_line.rho",
+      "sha256": "756342e41b01675f89fcd4ab634415204b427b74b429cab3b19ae8e3ef88ee19"
+    },
+    "17_policy.rho": {
+      "path": "contracts/build/17_policy.rho",
+      "sha256": "c6e16d6ee8479052c21d15f5712bb057672d82f1af5fcb42b44ad945ce8ce626"
+    },
+    "18_claim.rho": {
+      "path": "contracts/build/18_claim.rho",
+      "sha256": "7aff0e8a63db8d1229a7a540bd0161242239abd4ea8a56408806f824bc78978b"
+    },
+    "19_books.rho": {
+      "path": "contracts/build/19_books.rho",
+      "sha256": "e86a45c797e7411d2d87009cb93f24df390af848d2bdcbf137a129b782b3e265"
+    }
+  }
+}

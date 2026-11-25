@@ -43,6 +43,8 @@ jobs:
           python-version: "3.12"
       - run: python3 -m unittest discover -s tools/tests -v
       - run: python3 tools/check_registry.py --json
+      - run: python3 tools/vendor_install.py --check
+      - run: python3 tools/gate_sync.py --check
       - run: python3 tools/launch_dsh.py --print-config headless
 
   lean:

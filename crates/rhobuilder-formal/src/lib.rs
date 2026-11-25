@@ -1,15 +1,15 @@
-//! Lean `RhoApp` sync, obligation checks and formal-gate orchestration.
+//! Formal surface: vendored `RhoApp`, hash checks and per-arm obligations.
 //!
-//! P4 extracts the proven `RShare` linear-cell modules into a namespace-generic library
-//! and vendors it into generated apps. `proved-model` is the ceiling; this crate must never
-//! describe a model proof as a refinement of deployed Rholang.
+//! The implementation lives in `rhobuilder_core::formal`; this crate is the stable
+//! library surface for callers that do not depend on the core internals. `proved-model`
+//! is the ceiling; nothing here is a Rholang refinement.
 
-/// The phase this subsystem is scheduled for.
 pub const STAGE: &str = "P4";
 
-/// Whether the formal tooling is present.
+pub use rhobuilder_core::formal::{check, collect, obligations, sync, tree_hash, vendor_into};
+
 pub fn implemented() -> bool {
-    false
+    true
 }
 
 #[cfg(test)]
@@ -17,8 +17,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stage_is_declared() {
+    fn the_surface_is_present() {
         assert_eq!(STAGE, "P4");
-        assert!(!implemented());
+        assert!(implemented());
     }
 }

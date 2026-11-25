@@ -1,0 +1,162 @@
+{
+  "schema": "rhobuilder.install-plan/v1",
+  "app": "r-print",
+  "repo": "https://github.com/rhovision-org/r-print",
+  "commit": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+  "sourceRoot": "contracts/build",
+  "rootKey": "component:root",
+  "resolveArity": 3,
+  "phlo": {
+    "limit": 4000000,
+    "price": 1
+  },
+  "dependencies": [
+    "r-cash",
+    "r-gen",
+    "r-sure"
+  ],
+  "requiredKeys": [
+    "component:root",
+    "component:clock",
+    "component:codec",
+    "component:verifier",
+    "component:admin",
+    "component:admin-guard",
+    "component:terms",
+    "component:rgen-adapter",
+    "component:rsure-adapter",
+    "component:publication-factory",
+    "component:publication-cell-factory",
+    "component:commission-factory",
+    "component:commission-escrow-factory",
+    "component:article-factory",
+    "component:edition-factory",
+    "component:coordination-factory",
+    "component:coordination-cell-factory",
+    "component:payments"
+  ],
+  "placeholders": [
+    "__ADMINS__",
+    "__PROTOCOL_OWNER__",
+    "__RCASH_ROOT_URI__",
+    "__RGEN_ROOT_URI__",
+    "__ROOT_URI__",
+    "__RSURE_ROOT_URI__",
+    "__THRESHOLD__"
+  ],
+  "steps": [
+    {
+      "name": "00_root",
+      "term": "00_root.rho",
+      "root": true,
+      "placeholders": [
+        "__ADMINS__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "01_kernel",
+      "term": "01_kernel.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "02_admin",
+      "term": "02_admin.rho",
+      "placeholders": [
+        "__ADMINS__",
+        "__ROOT_URI__",
+        "__THRESHOLD__"
+      ]
+    },
+    {
+      "name": "40_payments",
+      "term": "40_payments.rho",
+      "placeholders": [
+        "__PROTOCOL_OWNER__",
+        "__RCASH_ROOT_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "03_terms",
+      "term": "03_terms.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "05_rgen",
+      "term": "05_rgen.rho",
+      "placeholders": [
+        "__RGEN_ROOT_URI__",
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "06_rsure",
+      "term": "06_rsure.rho",
+      "placeholders": [
+        "__ROOT_URI__",
+        "__RSURE_ROOT_URI__"
+      ]
+    },
+    {
+      "name": "10_publication",
+      "term": "10_publication.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "11_publication_cell",
+      "term": "11_publication_cell.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "20_commission",
+      "term": "20_commission.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "21_commission_escrow",
+      "term": "21_commission_escrow.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "30_article",
+      "term": "30_article.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "31_edition",
+      "term": "31_edition.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "32_coordination",
+      "term": "32_coordination.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    },
+    {
+      "name": "33_coordination_cell",
+      "term": "33_coordination_cell.rho",
+      "placeholders": [
+        "__ROOT_URI__"
+      ]
+    }
+  ]
+}

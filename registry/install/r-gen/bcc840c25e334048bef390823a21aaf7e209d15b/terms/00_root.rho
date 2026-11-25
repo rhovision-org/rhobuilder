@@ -1,0 +1,110 @@
+// Why: GenRoot is installer-gated discovery infrastructure, not a paper primitive. Core
+//      contracts are wired to factory URIs at install time and never resolve Root at runtime.
+// Paper: none (engineering infrastructure).
+// r-gen decision: no admin/freeze/rotate arms; the core is immutable. Upgrade by deploying a
+//      new core and a new Root.
+// Placeholders: none.
+new
+  GenRoot, rootState,
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  uriCh, ackCh, ackCh2,
+  authOwner, authSubject, authPubKey
+in {
+// Deployer identity helpers. The REV address is the subject id; the public key is stored
+// only where an identity profile needs it.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr, pk)) }
+    }
+  }
+} |
+
+contract authSubject(dId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr, _) => { ret!((true, addr)) }
+        _ => { ret!((false, "no identity")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, _, pk) => { ret!((true, pk)) }
+        _ => { ret!((false, "no identity")) }
+      }
+    }
+  }
+} |
+
+  contract GenRoot(@"resolve", @key, ret) = {
+    for (@s <<- rootState) {
+      match s.get("entries").get(key) {
+        Nil => { ret!((false, "unknown component")) }
+        e => { ret!((true, e.get("uri"), e.get("version"))) }
+      }
+    }
+  } |
+
+  contract GenRoot(@"get", @key, ret) = {
+    for (@s <<- rootState) {
+      match s.get("entries").get(key) {
+        Nil => { ret!((false, "unknown component")) }
+        e => { ret!((true, e)) }
+      }
+    }
+  } |
+
+  contract GenRoot(@"keys", ret) = {
+    for (@s <<- rootState) { ret!((true, s.get("entries").keys())) }
+  } |
+
+  contract GenRoot(@"register", @key, @uri, @version, @kind, dId, ret) = {
+    new aCh in {
+      authSubject!(*dId, *aCh) |
+      for (@r <- aCh) {
+        match r {
+          (true, who) => {
+            for (@s <- rootState) {
+              match (who == s.get("installer"), version >= 1,
+                     s.get("entries").get(key)) {
+                (false, _, _) => { rootState!(s) | ret!((false, "not installer")) }
+                (true, false, _) => { rootState!(s) | ret!((false, "bad version")) }
+                (true, true, Nil) => {
+                  rootState!(s.set("entries", s.get("entries").set(key, {
+                    "uri": uri, "version": version, "kind": kind }))) |
+                  ret!((true, Nil))
+                }
+                (true, true, _) => { rootState!(s) | ret!((false, "duplicate")) }
+                _ => { rootState!(s) | ret!((false, "not installer")) }
+              }
+            }
+          }
+          _ => { ret!((false, "not installer")) }
+        }
+      }
+    }
+  } |
+
+  authSubject!(*deployerId, *ackCh) |
+  for (@(true, installer) <- ackCh) {
+    rootState!({"installer": installer, "entries": {}}) |
+    rs!(bundle+{*GenRoot}, *uriCh) |
+    for (@uri <- uriCh) {
+      GenRoot!("register", "component:root", uri, 1, "root", *deployerId, *ackCh2) |
+      for (@r <- ackCh2) { deployId!([uri]) }
+    }
+  }
+}

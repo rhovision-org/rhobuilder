@@ -1,0 +1,131 @@
+// __app_name__ dispute and panel cell.
+// One linear dispute cell per opened dispute. The factory refuses a duplicate id, the
+// provider cannot sit on the panel, and a panelist votes once. Maps are used for
+// membership so the term stays parser-safe and linear.
+new rs(`rho:registry:insertArbitrary`), deployId(`rho:rchain:deployId`) in {
+  new ids, DisputeFactory, uriCh in {
+    ids!({}) |
+
+    contract DisputeFactory(@"open", @id, @guest, @provider, @amount, ret) = {
+      for (@openIds <- ids) {
+        match openIds.get(id) {
+          Nil => {
+            ids!(openIds.set(id, true)) |
+            new cell in {
+              cell!({
+                "id": id,
+                "guest": guest,
+                "provider": provider,
+                "amount": amount,
+                "state": "open",
+                "panel": {},
+                "votes": {},
+                "verdicts": [],
+                "settled": 0,
+                "refund": 0
+              }) |
+              new Dispute, dUri in {
+                contract Dispute(@"get", ret) = {
+                  for (@d <<- cell) { ret!(d) }
+                } |
+
+                contract Dispute(@"selectPanel", @panelists, ret) = {
+                  for (@d <- cell) {
+                    if (d.get("state") != "open") {
+                      cell!(d) | ret!((false, "wrong state"))
+                    } else {
+                      match panelists.get(d.get("provider")) {
+                        Nil => {
+                          if (panelists.size() == 0) {
+                            cell!(d) | ret!((false, "empty panel"))
+                          } else {
+                            cell!(d.set("panel", panelists)
+                                   .set("state", "panel")) |
+                            ret!((true, panelists.keys().toList()))
+                          }
+                        }
+                        _ => {
+                          cell!(d) | ret!((false, "provider on panel"))
+                        }
+                      }
+                    }
+                  }
+                } |
+
+                contract Dispute(@"recordVerdict", @panelist, @verdict, ret) = {
+                  for (@d <- cell) {
+                    if (d.get("state") != "panel") {
+                      cell!(d) | ret!((false, "wrong state"))
+                    } else {
+                      match d.get("panel").get(panelist) {
+                        Nil => {
+                          cell!(d) | ret!((false, "not a panelist"))
+                        }
+                        _ => {
+                          match d.get("votes").get(panelist) {
+                            Nil => {
+                              new votes in {
+                                votes!(d.get("votes").set(panelist, verdict)) |
+                                for (@v <- votes) {
+                                  if (v.size() == d.get("panel").size()) {
+                                    cell!(d.set("votes", v)
+                                           .set("verdicts",
+                                                d.get("verdicts") ++ [verdict])
+                                           .set("state", "resolved")) |
+                                    ret!((true, "resolved"))
+                                  } else {
+                                    cell!(d.set("votes", v)
+                                           .set("verdicts",
+                                                d.get("verdicts") ++ [verdict])) |
+                                    ret!((true, "recorded"))
+                                  }
+                                }
+                              }
+                            }
+                            _ => {
+                              cell!(d) | ret!((false, "already voted"))
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                } |
+
+                contract Dispute(@"settle", @settled, @refund, ret) = {
+                  for (@d <- cell) {
+                    if (d.get("state") != "resolved") {
+                      cell!(d) | ret!((false, "wrong state"))
+                    } else {
+                      if (settled + refund != d.get("amount")) {
+                        cell!(d) | ret!((false, "not conserved"))
+                      } else {
+                        cell!(d.set("settled", settled)
+                               .set("refund", refund)
+                               .set("state", "settled")) |
+                        ret!((true, settled + refund))
+                      }
+                    }
+                  }
+                } |
+
+                rs!(bundle+{*Dispute}, *dUri) |
+                for (@disputeUri <- dUri) {
+                  ret!((true, disputeUri))
+                }
+              }
+            }
+          }
+          _ => {
+            ids!(openIds) | ret!((false, "duplicate dispute"))
+          }
+        }
+      }
+    } |
+
+    rs!(bundle+{*DisputeFactory}, *uriCh) |
+    for (@factoryUri <- uriCh) {
+      deployId!([factoryUri])
+    }
+  }
+}

@@ -8,19 +8,19 @@ exist on the target network.
 
 ## Status
 
-This is the P0 scaffold plus the P1 read-only identity slice. The registry profile, pins
-and first-cut catalog are committed; sibling drift, the scaffolder, Lean library, devnet
-harness and testnet baseline are not implemented yet. `make check` is the current gate.
+P5 is measured on devnet and P6 is code-complete but live-gated. The full five-primitive
+graph is installed and root-verified, and the generated `bookable-service` example passes
+nine behavioural suites. No signed public-testnet deploy has been executed.
 
 | Area | Status |
 |---|---|
-| Repo + DSH plugin/skills/launcher | P0/P3 — implemented; DSH 0.2.2-rc.5 `--dump-config` validates web and headless overlays |
-| Registry + network identity probe | P1 — profile/pins/catalog committed; pinned-commit drift clean |
-| Design gate + scaffolder + vendored gates | P2 — design gate and full/headless scaffold implemented; canonical gate vendoring pending |
-| Lean `RhoApp` + per-dApp models | P4 — shared RhoApp, vendoring and hash check implemented; per-app model is scaffold |
-| Devnet end-to-end | P5 — installer/smoke implemented; execution pending a healthy devnet (local node throttled) |
-| Public-testnet baseline | P6 — read-only plan/verify implemented; live campaign deliberately gated and not run |
-| Optional MCP server | P7 — read-only/plan server implemented with both protocol lanes |
+| Repo + DSH plugin/skills/launcher | implemented; plugin tools map to real CLI commands; no live model session |
+| Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
+| Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` has real contracts; canonical gates are vendored and hash-checked; generic patterns owed |
+| Lean `RhoApp` + obligations | shared RhoApp, hash check and per-arm obligation gate implemented; app model `owed` |
+| Devnet end-to-end | P5 measured: five roots verified, app root verified, nine suites pass |
+| Public-testnet baseline | P6 code-complete: plan/dry-run/executor/keys/Root verification; live gated; r-cash account-factory blocker |
+| MCP server | read-only/plan server with both protocol lanes |
 
 ## Quick start
 

@@ -1,0 +1,604 @@
+// Claim: first notification of loss, classification, assessment, lead/follow agreement,
+// optional r-gen OracleCase adjudication, and settlement through the policy.
+// Placeholders: __ROOT_URI__.
+new
+  ClaimFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  claimResolve, nowHeight, claimPolicyInfo, claimReqOk, claimMake, claimWindowOk,
+  claimAgree, claimApplyDecision, claimManagers, authOwner, authIsOwner
+in {
+// Deployer identity helpers. r-cash owns accounts; r-sure only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+  contract claimResolve(@key, ret) = {
+    new rCh, Root, kCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", key, 1, *kCh) |
+        for (@r <- kCh) {
+          match r {
+            (true, uri, _) => {
+              new cCh in {
+                rl!(uri, *cCh) |
+                for (C <- cCh) { ret!((true, *C)) }
+              }
+            }
+            _ => { ret!((false, "unavailable", key)) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract nowHeight(ret) = {
+    new cCh in {
+      claimResolve!("component:clock", *cCh) |
+      for (@r <- cCh) {
+        match r {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract claimPolicyInfo(@policyUri, ret) = {
+    new pCh in {
+      rl!(policyUri, *pCh) |
+      for (Policy <- pCh) {
+        new iCh in {
+          Policy!("info", *iCh) |
+          for (@i <- iCh) { ret!(i) }
+        }
+      }
+    }
+  } |
+
+  contract claimReqOk(@req, ret) = {
+    match (req.get("lossHeight"), req.get("claimedAmount"), req.get("evidence")) {
+      (loss, amount, evidence) => {
+        if (loss == Nil || amount == Nil || evidence == Nil) {
+          ret!((false, "fields"))
+        } else {
+          if (amount < 1) { ret!((false, "amount")) }
+          else { ret!((true, Nil)) }
+        }
+      }
+    }
+  } |
+
+  contract claimManagers(@lines, ret) = {
+    match lines.nth(0) {
+      l => {
+        if (lines.length() > 1) {
+          match lines.nth(1) {
+            s => { ret!((l.get("manager"), s.get("manager"))) }
+          }
+        } else {
+          ret!((l.get("manager"), Nil))
+        }
+      }
+    }
+  } |
+
+  contract claimAgree(@s, @who, @kind, @amount, @basisHash, ret) = {
+    if (kind == "standard") {
+      if (who != s.get("leadManager")) { ret!((false, "not lead")) }
+      else {
+        ret!((true, s.set("agreement", {"lead": who, "at": 0})
+                     .set("agreedAmount", amount)
+                     .set("status", "agreed")))
+      }
+    } else {
+      match s.get("agreement") {
+        Nil => {
+          if (who != s.get("leadManager")) { ret!((false, "not lead")) }
+          else {
+            ret!((true, s.set("agreement", {"lead": who, "second": Nil, "at": 0})
+                         .set("status", "assessing")))
+          }
+        }
+        a => {
+          if (who == s.get("secondManager")) {
+            if (a.get("lead") == Nil) { ret!((false, "lead first")) }
+            else {
+              ret!((true, s.set("agreement", a.set("second", who))
+                           .set("agreedAmount", amount)
+                           .set("status", "agreed")))
+            }
+          } else {
+            if (who == s.get("leadManager")) {
+              ret!((true, s.set("agreement", a.set("lead", who))))
+            } else { ret!((false, "not manager")) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract claimApplyDecision(@s, @caseId, @decision, ret) = {
+    if (s.get("status") == "settled" || s.get("status") == "denied"
+        || s.get("status") == "closed") {
+      ret!((false, "closed"))
+    } else {
+    match s.get("oracleRef") {
+      Nil => { ret!((false, "no dispute")) }
+      ref => {
+        if (ref.get("id") != caseId) { ret!((false, "case mismatch")) }
+        else {
+          match decision.get("outcome") {
+            "uphold" => {
+              match s.get("assessment") {
+                Nil => { ret!((false, "no assessment")) }
+                a => {
+                  ret!((true, s.set("status", "upheld")
+                               .set("agreedAmount", a.get("recommendedAmount"))
+                               .set("decision", decision)))
+                }
+              }
+            }
+            "partial" => {
+              match decision.get("amount") {
+                Nil => { ret!((false, "amount")) }
+                amount => {
+                  if (amount < 0 || amount > s.get("claimedAmount")) {
+                    ret!((false, "amount"))
+                  } else {
+                    ret!((true, s.set("status", "partially_upheld")
+                                 .set("agreedAmount", amount)
+                                 .set("decision", decision)))
+                  }
+                }
+              }
+            }
+            "revoke" => {
+              ret!((true, s.set("status", "denied")
+                           .set("agreedAmount", 0)
+                           .set("decision", decision)))
+            }
+            _ => { ret!((false, "outcome")) }
+          }
+        }
+      }
+    }
+    }
+  } |
+
+  contract claimWindowOk(@policyUri, @req, ret) = {
+    new pCh, hCh in {
+      rl!(policyUri, *pCh) |
+      nowHeight!(*hCh) |
+      for (Policy <- pCh; @h <- hCh) {
+        new iCh in {
+          Policy!("info", *iCh) |
+          for (@i <- iCh) {
+            match i {
+              (true, s) => {
+                match h {
+                  (true, now) => {
+                    match (req.get("lossHeight"), s.get("terms").get("periodStartHeight"),
+                           s.get("terms").get("periodEndHeight"), s.get("terms").get("noticeBlocks")) {
+                      (loss, start, end, notice) => {
+                        if (loss == Nil || start == Nil || end == Nil || notice == Nil) {
+                          ret!((false, "fields"))
+                        } else {
+                          if (loss < start || loss > end || now > loss + notice) {
+                            ret!((false, "notice"))
+                          } else { ret!((true, Nil)) }
+                        }
+                      }
+                    }
+                  }
+                  _ => { ret!(h) }
+                }
+              }
+              _ => { ret!((false, "policy unavailable")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract claimMake(@dId, @policyUri, @policyId, @insured, @broker, claimToken, @req, ret) = {
+  new cfgDId, cfgPolicyUri, cfgPolicyId, cfgInsured, cfgBroker, cfgClaimToken, cfgReq in {
+    cfgDId!(dId) |
+    cfgPolicyUri!(policyUri) |
+    cfgPolicyId!(policyId) |
+    cfgInsured!(insured) |
+    cfgBroker!(broker) |
+    cfgClaimToken!(*claimToken) |
+    cfgReq!(req) |
+    for (@dIdV <- cfgDId; @policyUriV <- cfgPolicyUri; @policyIdV <- cfgPolicyId; @insuredV <- cfgInsured; @brokerV <- cfgBroker; claimTokenV <- cfgClaimToken; @reqV <- cfgReq) {
+
+    new Claim, claimState, uriCh in {
+      claimState!({
+        "id": "clm:" ++ policyIdV ++ ":" ++ reqV.get("lossHeight").toString(),
+        "uri": "",
+        "policyId": policyIdV,
+        "policyUri": policyUriV,
+        "insured": insuredV,
+        "broker": brokerV,
+        "notifiedBy": "",
+        "lossHeight": reqV.get("lossHeight"),
+        "claimedAmount": reqV.get("claimedAmount"),
+        "evidence": reqV.get("evidence"),
+        "reserve": 0,
+        "classification": Nil,
+        "assessment": Nil,
+        "agreement": Nil,
+        "status": "notified",
+        "agreedAmount": 0,
+        "paid": 0,
+        "fundCover": 0,
+        "oracleRef": Nil,
+        "leadManager": Nil,
+        "secondManager": Nil,
+        "nonce": 0
+      }) |
+
+      contract Claim(@"info", ret2) = {
+        for (@s <<- claimState) { ret2!((true, s)) }
+      } |
+
+      contract Claim(@"evidence", ret2) = {
+        for (@s <<- claimState) { ret2!((true, s.get("evidence"))) }
+      } |
+
+      contract Claim(@"addEvidence", dId2, @evidence, ret2) = {
+        new aCh in {
+          authOwner!(*dId2, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- claimState) {
+              if (s.get("status") == "agreed" || s.get("status") == "settled"
+                  || s.get("status") == "denied" || s.get("status") == "closed") {
+                claimState!(s) | ret2!((false, "closed"))
+              } else {
+                claimState!(s.set("evidence", s.get("evidence") ++ evidence)
+                              .set("nonce", s.get("nonce") + 1)) |
+                ret2!((true, Nil))
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"classify", dId2, @kind, ret2) = {
+        new aCh in {
+          authOwner!(*dId2, *aCh) |
+          for (@(true, who) <- aCh) {
+            new piCh in {
+              claimPolicyInfo!(policyUriV, *piCh) |
+              for (@pi <- piCh) {
+                match pi {
+                  (true, p) => {
+                    new mCh in {
+                      claimManagers!(p.get("lines"), *mCh) |
+                      for (@mgr <- mCh) {
+                        match mgr {
+                          (lead, second) => {
+                            for (@s <- claimState) {
+                              if (s.get("status") == "settled" || s.get("status") == "denied"
+                                  || s.get("status") == "closed") {
+                                claimState!(s) | ret2!((false, "closed"))
+                              } else {
+                              if (who != lead) {
+                                claimState!(s) | ret2!((false, "not lead"))
+                              } else {
+                                if (kind != "standard" && kind != "complex") {
+                                  claimState!(s) | ret2!((false, "kind"))
+                                } else {
+                                  claimState!(s.set("classification",
+                                      {"kind": kind, "by": who, "at": 0})
+                                    .set("leadManager", lead)
+                                    .set("secondManager", second)
+                                    .set("status", "classified")
+                                    .set("nonce", s.get("nonce") + 1)) |
+                                  ret2!((true, kind))
+                                }
+                              }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                  _ => { ret2!((false, "policy unavailable")) }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"assess", dId2, @assessment, ret2) = {
+        new aCh in {
+          authOwner!(*dId2, *aCh) |
+          for (@(true, who) <- aCh) {
+            new piCh in {
+              claimPolicyInfo!(policyUriV, *piCh) |
+              for (@pi <- piCh) {
+                match pi {
+                  (true, p) => {
+                    for (@s <- claimState) {
+                      if (s.get("status") == "settled" || s.get("status") == "denied"
+                          || s.get("status") == "closed") {
+                        claimState!(s) | ret2!((false, "closed"))
+                      } else {
+                      if (who != s.get("leadManager") && who != s.get("secondManager")) {
+                        claimState!(s) | ret2!((false, "not manager"))
+                      } else {
+                        claimState!(s.set("assessment", assessment.set("by", who)
+                                      .set("at", 0))
+                                    .set("status", "assessed")
+                                    .set("nonce", s.get("nonce") + 1)) |
+                        ret2!((true, Nil))
+                      }
+                      }
+                    }
+                  }
+                  _ => { ret2!((false, "policy unavailable")) }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"agree", dId2, @amount, @basisHash, ret2) = {
+        new aCh in {
+          authOwner!(*dId2, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- claimState) {
+              if (s.get("status") == "settled" || s.get("status") == "denied"
+                  || s.get("status") == "closed") {
+                claimState!(s) | ret2!((false, "closed"))
+              } else {
+              match s.get("classification") {
+                Nil => { claimState!(s) | ret2!((false, "not classified")) }
+                c => {
+                  new agCh in {
+                    claimAgree!(s, who, c.get("kind"), amount, basisHash, *agCh) |
+                    for (@ag <- agCh) {
+                      match ag {
+                        (true, s2) => {
+                          claimState!(s2.set("nonce", s2.get("nonce") + 1)) |
+                          ret2!((true, s2.get("status")))
+                        }
+                        _ => { claimState!(s) | ret2!(ag) }
+                      }
+                    }
+                  }
+                }
+              }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"dispute", dId2, @caseReq, ret2) = {
+        new aCh in {
+          authOwner!(*dId2, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- claimState) {
+              if (s.get("status") == "settled" || s.get("status") == "denied"
+                  || s.get("status") == "closed") {
+                claimState!(s) | ret2!((false, "closed"))
+              } else {
+                new ofCh in {
+                  claimResolve!("component:rgen", *ofCh) |
+                  for (@ad <- ofCh) {
+                    match ad {
+                      (true, RgenAdapter) => {
+                        new oCh in {
+                          @RgenAdapter!("oracleFactory", *oCh) |
+                          for (@o <- oCh) {
+                            match o {
+                              (true, OracleFactory) => {
+                                new applyCap, applyRet, proofState, Proof,
+                                    proofCh, boundReq, ooCh in {
+                                  contract applyCap(@"applyDecision", @caseId,
+                                                    @decision, ret3) = {
+                                    for (@s2 <- claimState) {
+                                      new dCh in {
+                                        claimApplyDecision!(s2, caseId, decision, *dCh) |
+                                        for (@d <- dCh) {
+                                          match d {
+                                            (true, s3) => {
+                                              claimState!(s3.set("nonce",
+                                                          s3.get("nonce") + 1)) |
+                                              ret3!((true, s3.get("status")))
+                                            }
+                                            _ => { claimState!(s2) | ret3!(d) }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  } |
+                                  boundReq!(caseReq.set("openedBy", who)) |
+                                  for (@req <- boundReq) {
+                                    proofState!({
+                                      "data": {
+                                        "subjectRef": s.get("uri"),
+                                        "subjectUri": s.get("uri").toString(),
+                                        "parties": [s.get("insured"), s.get("broker")],
+                                        "discipline": req.get("discipline"),
+                                        "jurisdiction": req.get("jurisdiction")},
+                                      "used": false}) |
+                                    contract Proof(@"take", ret3) = {
+                                      for (@p <- proofState) {
+                                        if (p.get("used")) {
+                                          proofState!(p) | ret3!((false, "used"))
+                                        } else {
+                                          proofState!(p.set("used", true)) |
+                                          ret3!((true, p.get("data")))
+                                        }
+                                      }
+                                    } |
+                                    proofCh!(bundle+{*Proof}) |
+                                    @OracleFactory!("openBound", *dId2, *proofCh,
+                                                    req, *applyCap, *ooCh) |
+                                    for (@oo <- ooCh) {
+                                      match oo {
+                                        (true, case) => {
+                                          claimState!(s.set("oracleRef", case)
+                                                        .set("status", "disputed")
+                                                        .set("nonce", s.get("nonce") + 1)) |
+                                          ret2!((true, case))
+                                        }
+                                        _ => { claimState!(s) | ret2!(oo) }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { claimState!(s) | ret2!((false, "oracle unavailable")) }
+                            }
+                          }
+                        }
+                      }
+                      _ => { claimState!(s) | ret2!((false, "rgen unavailable")) }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"settle", ret2) = {
+        for (@s <- claimState) {
+          if (s.get("status") != "agreed" && s.get("status") != "upheld"
+              && s.get("status") != "partially_upheld") {
+            claimState!(s) | ret2!((false, "not agreed"))
+          } else {
+            new pCh in {
+              rl!(policyUriV, *pCh) |
+              for (Policy <- pCh) {
+                new scCh in {
+                  Policy!("settleClaim", *claimTokenV, s.get("id"),
+                           s.get("agreedAmount"), s.get("insured"), *scCh) |
+                  for (@sc <- scCh) {
+                    match sc {
+                      (true, paid) => {
+                        claimState!(s.set("paid", paid)
+                                     .set("status", "settled")
+                                     .set("nonce", s.get("nonce") + 1)) |
+                        ret2!((true, paid))
+                      }
+                      _ => { claimState!(s) | ret2!(sc) }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Claim(@"close", ret2) = {
+        for (@s <- claimState) {
+          if (s.get("status") == "settled" || s.get("status") == "denied") {
+            claimState!(s.set("status", "closed")
+                          .set("nonce", s.get("nonce") + 1)) |
+            ret2!((true, Nil))
+          } else {
+            claimState!(s) | ret2!((false, "not finished"))
+          }
+        }
+      } |
+
+      rs!(bundle+{*Claim}, *uriCh) |
+      for (@uri <- uriCh) {
+        for (@s2 <- claimState) {
+          claimState!(s2.set("uri", uri)) |
+          new cbCh in {
+            claimResolve!("component:claim-book", *cbCh) |
+            for (@cbr <- cbCh) {
+              match cbr {
+                (true, ClaimBook) => {
+                  new regCh in {
+                    @ClaimBook!("register", s2.get("id"), uri, s2.get("policyId"),
+                               s2.get("insured"), *regCh) |
+                    for (@r <- regCh) { ret!((true, s2.get("id"), uri)) }
+                  }
+                }
+                _ => { ret!((true, s2.get("id"), uri)) }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    }
+  }
+} |
+
+  contract ClaimFactory(@"create", dId, @policyUri, @policyId, @insured, @broker,
+                        claimToken, @req, ret) = {
+    new okCh in {
+      claimReqOk!(req, *okCh) |
+      for (@ok <- okCh) {
+        match ok {
+          (false, reason) => { ret!((false, reason)) }
+          (true, Nil) => {
+            new wCh in {
+              claimWindowOk!(policyUri, req, *wCh) |
+              for (@w <- wCh) {
+                match w {
+                  (true, Nil) => {
+                    claimMake!(*dId, policyUri, policyId, insured, broker,
+                               *claimToken, req, *ret)
+                  }
+                  _ => { ret!(w) }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*ClaimFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:claim-factory", uri, 1, "claim",
+            *deployerId, *ack) |
+      for (@r <- ack) { deployId!([uri]) }
+    }
+  }
+}

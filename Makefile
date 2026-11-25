@@ -6,8 +6,8 @@ SOURCE_ROOT ?= /home/patrick
 DESIGN ?= fixtures/designs/booking.json
 
 .PHONY: help check rust-check fmt clippy test plugin-test launcher-test \
-	docs docs-check dsh-check registry-check registry-drift chain-probe \
-	design-check design-refuse scaffold-e2e mcp-test baseline-plan formal-check clean
+	docs docs-check dsh-check registry-check registry-drift vendor-install-check gates-check \
+	chain-probe design-check design-refuse scaffold-e2e mcp-test baseline-plan formal-check clean
 
 help:
 	@echo "rhobuilder targets:"
@@ -20,13 +20,15 @@ help:
 	@echo "  make chain-probe    read-only testnet identity probe"
 	@echo "  make registry-check validate the committed registry"
 	@echo "  make registry-drift pinned-commit drift against $(SOURCE_ROOT)"
+	@echo "  make vendor-install-check verify pinned vendored terms and hashes"
+	@echo "  make gates-check    verify canonical gates and their vendored copies"
 	@echo "  make design-check   validate $(DESIGN) and run the reuse gate"
 	@echo "  make design-refuse  assert the duplicate-escrow fixture is refused"
 	@echo "  make scaffold-e2e   generate the booking fixture and run its gates"
 	@echo "  make baseline-plan  read-only testnet baseline plan"
 	@echo "  make formal-check   P4: Lean RhoApp and per-dApp obligations"
 
-check: rust-check plugin-test mcp-test launcher-test registry-check design-check docs-check
+check: rust-check plugin-test mcp-test launcher-test registry-check vendor-install-check gates-check design-check docs-check
 
 rust-check: fmt clippy test
 
@@ -77,6 +79,12 @@ registry-check:
 registry-drift:
 	$(CARGO) run -q -p rhobuilder-cli -- --json registry drift \
 		--source-root $(SOURCE_ROOT) --strict
+
+vendor-install-check:
+	$(PY) tools/vendor_install.py --check
+
+gates-check:
+	$(PY) tools/gate_sync.py --check
 
 scaffold-e2e:
 	rm -rf /tmp/rhobuilder-e2e /tmp/rhobuilder-e2e-refused

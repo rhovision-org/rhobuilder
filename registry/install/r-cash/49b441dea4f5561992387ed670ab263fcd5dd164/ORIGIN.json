@@ -1,0 +1,70 @@
+{
+  "schema": "rhobuilder.install-origin/v1",
+  "app": "r-cash",
+  "repo": "https://github.com/rhovision-org/r-cash",
+  "commit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+  "sourceRoot": "contracts/build/deploy/v3",
+  "license": "AGPL-3.0-only",
+  "terms": {
+    "00_root.rho": {
+      "path": "contracts/build/deploy/v3/00_root.rho",
+      "sha256": "3a940b2f752ca3c0a99e73d521be131f285418de55a43da0a82bfc46f8026e3b"
+    },
+    "03_admin_guard.rho": {
+      "path": "contracts/build/deploy/v3/03_admin_guard.rho",
+      "sha256": "9a948d8d406499c80c2f15066e8bb4ae1f718e41f9676380a5f68eac3df3fa9c"
+    },
+    "01_kernel.rho": {
+      "path": "contracts/build/deploy/v3/01_kernel.rho",
+      "sha256": "699b5db00572be4ef2eb499d9753041dc4ed601d0a614ad357a1c2bc51fa947e"
+    },
+    "02_bounds.rho": {
+      "path": "contracts/build/deploy/v3/02_bounds.rho",
+      "sha256": "01859a1ad594f620ad3ce8aed3b639852bcf3ce32ae3ad4085f6837367ca9fa9"
+    },
+    "04_governor.rho": {
+      "path": "contracts/build/deploy/v3/04_governor.rho",
+      "sha256": "9c1aec40bc4ffc14ab41e1af440f3ac689bb2d5edf8867c8cd5b2b415a9b1dd3"
+    },
+    "05_amm_math.rho": {
+      "path": "contracts/build/deploy/v3/05_amm_math.rho",
+      "sha256": "676f0be5ebc555dcf639f3248696707ad978b44cf2d876d4a1f0ba8945a3979a"
+    },
+    "06_collateral_math.rho": {
+      "path": "contracts/build/deploy/v3/06_collateral_math.rho",
+      "sha256": "2ae3a6142fcce54db0bd4535595592cdd2238211b1e94975f9bf709abfe0c724"
+    },
+    "07_oracle_math.rho": {
+      "path": "contracts/build/deploy/v3/07_oracle_math.rho",
+      "sha256": "581367420ab7ab0da0c90a88713d55553fe8afe07cb0fb723fb0da6097dfb3b5"
+    },
+    "08_claim_code.rho": {
+      "path": "contracts/build/deploy/v3/08_claim_code.rho",
+      "sha256": "d9c4f12715cee35361afd1a3be530791efc0a6b801f835a0605f2a2c9506a3fc"
+    },
+    "12_oracle_registry.rho": {
+      "path": "contracts/build/deploy/v3/12_oracle_registry.rho",
+      "sha256": "fabfc172d1801b79d03e88ba359915540bca4962782cbb6f38f03c51f6376364"
+    },
+    "13_oracle_hub.rho": {
+      "path": "contracts/build/deploy/v3/13_oracle_hub.rho",
+      "sha256": "cca092e8e5f73d2d404a6781bca25be7d9ef413b79e5166b624cb21f31f7c48c"
+    },
+    "32_currency_registry.rho": {
+      "path": "contracts/build/deploy/v3/32_currency_registry.rho",
+      "sha256": "696ae2d81ede66a39692b35c90d7e162cb8358e7b98d9e5c458f73cf6f515206"
+    },
+    "14_asset_resolver.rho": {
+      "path": "contracts/build/deploy/v3/14_asset_resolver.rho",
+      "sha256": "5b41082111f08fe2cd9c0b90911a427db9335ae284e9e0f3af42281f14d75376"
+    },
+    "40_transfer.rho": {
+      "path": "contracts/build/deploy/v3/40_transfer.rho",
+      "sha256": "254cc33a2905cfa8ca068b2ef80a5ccd6e781b6a83b1734f29a85bdc6eb5f071"
+    },
+    "09_identity.rho": {
+      "path": "contracts/build/deploy/v3/09_identity.rho",
+      "sha256": "5d553ca78dd11355bcdf9bad19b815c122391fe66d5f8dab63e3133ca615ef19"
+    }
+  }
+}

@@ -49,7 +49,6 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       pushFlag(argv, '--depth', args.depth)
       pushFlag(argv, '--source-root', args.sourceRoot)
       if (action === 'drift' && args.strict === true) argv.push('--strict')
-      if (action === 'verify') argv.push('--read-only')
       break
     }
     case 'design': {
@@ -92,15 +91,9 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       break
     }
     case 'chain': {
-      const action = requireEnum(args, 'action', [
-        'probe',
-        'status',
-        'explore',
-        'deploy-status',
-      ])
+      const action = requireEnum(args, 'action', ['probe', 'status', 'deploy-status'])
       const network = requireString(args, 'network')
       argv = [...base, 'chain', action, '--network', network]
-      pushFlag(argv, '--uri', args.uri)
       pushFlag(argv, '--deploy-id', args.deployId)
       break
     }

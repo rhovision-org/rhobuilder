@@ -1,0 +1,282 @@
+// PublicationFactory: validates a charter and spawns one Publication cell.
+// The cell itself lives in 11_publication_cell.rho. Placeholders: __ROOT_URI__.
+new
+  PublicationFactory, factoryState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  pubNow, pubCharterHash, pubMemberIsPublisher, pubMembersMap, pubSpawn, pubCreateGo
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+
+  contract pubNow(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract pubCharterHash(@publicationId, @charter, ret) = {
+    new cCh in {
+      resolveComponent!("component:codec", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Codec) => {
+            @Codec!("hash", "rprint:charter:v1",
+                    [publicationId, charter.get("nameHash"),
+                     charter.get("mastheadHash"), charter.get("taglineHash"),
+                     charter.get("treasuryAccountId"), charter.get("assetId")],
+                    *ret)
+          }
+          _ => { ret!((false, "codec")) }
+        }
+      }
+    }
+  } |
+
+  contract pubMemberIsPublisher(@members, @i, @creatorId, ret) = {
+    if (i >= members.length()) {
+      ret!((false, "member"))
+    } else {
+      match members.nth(i) {
+        m => {
+          if (m.get("memberId") == creatorId) {
+            if (m.get("role") == "publisher") { ret!((true, Nil)) }
+            else { ret!((false, "role")) }
+          } else {
+            pubMemberIsPublisher!(members, i + 1, creatorId, *ret)
+          }
+        }
+      }
+    }
+  } |
+
+  contract pubMembersMap(@members, @i, @now, @acc, ret) = {
+    if (i >= members.length()) {
+      ret!(acc)
+    } else {
+      match members.nth(i) {
+        m => {
+          pubMembersMap!(members, i + 1, now,
+                         acc.set(m.get("memberId"), {
+                           "role": m.get("role"),
+                           "did": m.get("did"),
+                           "attestationHash": m.get("attestationHash"),
+                           "status": "active",
+                           "sinceHeight": now
+                         }),
+                         *ret)
+        }
+      }
+    }
+  } |
+
+  contract pubSpawn(@state, ret) = {
+    new cCh in {
+      resolveComponent!("component:publication-cell-factory", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, CellFactory) => { @CellFactory!("spawn", state, *ret) }
+          _ => { ret!((false, "publication cell")) }
+        }
+      }
+    }
+  } |
+
+  contract pubCreateGo(@fs, @creatorId, @opId, @publicationId, @charter,
+                       @members, ret) = {
+    new nCh in {
+      pubNow!(*nCh) |
+      for (@n <- nCh) {
+        match n {
+          (true, now) => {
+            new hCh in {
+              pubCharterHash!(publicationId, charter, *hCh) |
+              for (@h <- hCh) {
+                match h {
+                  (true, charterHash) => {
+                    new mCh in {
+                      pubMembersMap!(members, 0, now, {}, *mCh) |
+                      for (@memberMap <- mCh) {
+                        new sCh in {
+                          pubSpawn!({
+                            "publicationId": publicationId,
+                            "charterHash": charterHash,
+                            "status": "active",
+                            "admins": charter.get("admins"),
+                            "threshold": charter.get("threshold"),
+                            "nonce": 0,
+                            "schemaVersion": 1,
+                            "charter": charter.set("foundedAtHeight", now),
+                            "members": memberMap,
+                            "ops": {}
+                          }, *sCh) |
+                          for (@s <- sCh) {
+                            match s {
+                              (true, uri) => {
+                                factoryState!(
+                                  fs.set("ids", fs.get("ids").set(publicationId, uri))
+                                    .set("ops", fs.get("ops").set(
+                                      creatorId ++ ":" ++ opId, (true, uri)))) |
+                                ret!((true, uri))
+                              }
+                              _ => { factoryState!(fs) | ret!(s) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                  _ => { factoryState!(fs) | ret!(h) }
+                }
+              }
+            }
+          }
+          _ => { factoryState!(fs) | ret!(n) }
+        }
+      }
+    }
+  } |
+
+  contract PublicationFactory(@"create", dId, @opId, @publicationId,
+                              @charter, @members, ret) = {
+    new oCh in {
+      authOwner!(*dId, *oCh) |
+      for (@o <- oCh) {
+        match o {
+          (true, creatorId) => {
+            if (publicationId.length() == 0 || publicationId.length() > 64) {
+              ret!((false, "publication"))
+            } else {
+              for (@fs <- factoryState) {
+                match fs.get("ops").get(creatorId ++ ":" ++ opId) {
+                  Nil => {
+                    match fs.get("ids").get(publicationId) {
+                      Nil => {
+                        new cCh in {
+                          resolveComponent!("component:terms", *cCh) |
+                          for (@c <- cCh) {
+                            match c {
+                              (true, Terms) => {
+                                new vCh in {
+                                  @Terms!("charter", charter, members, *vCh) |
+                                  for (@v <- vCh) {
+                                    match v {
+                                      (true, Nil) => {
+                                        new pCh in {
+                                          pubMemberIsPublisher!(members, 0, creatorId, *pCh) |
+                                          for (@p <- pCh) {
+                                            match p {
+                                              (true, Nil) => { pubCreateGo!(fs, creatorId, opId, publicationId, charter, members, *ret) }
+                                              _ => { factoryState!(fs) | ret!(p) }
+                                            }
+                                          }
+                                        }
+                                      }
+                                      _ => { factoryState!(fs) | ret!(v) }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { ret!((false, "terms")) }
+                            }
+                          }
+                        }
+                      }
+                      _ => { factoryState!(fs) | ret!((false, "duplicate")) }
+                    }
+                  }
+                  stored => { factoryState!(fs) | ret!(stored) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "not owner")) }
+        }
+      }
+    }
+  } |
+
+  contract PublicationFactory(@"issued", @publicationId, ret) = {
+    for (@fs <<- factoryState) {
+      match fs.get("ids").get(publicationId) {
+        Nil => { ret!((false, "unknown")) }
+        uri => { ret!((true, uri)) }
+      }
+    }
+  } |
+
+  factoryState!({"ids": {}, "ops": {}, "schemaVersion": 1}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*PublicationFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:publication-factory", uri, 1, "publication", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

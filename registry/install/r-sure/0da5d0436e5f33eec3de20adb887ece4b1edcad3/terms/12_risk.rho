@@ -1,0 +1,890 @@
+// Risk: the insured's submission. It carries the asset reference, the three insurability
+// questions and r-gen evidence references. Assessment is an underwriting record; the
+// binding terms live on the slip.
+// Placeholders: __ROOT_URI__.
+new
+  RiskBook, riskBookState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, nowHeight, isPaused, riskClassOk, evidenceOk, triOk,
+  riskComponent, riskEvidenceHas, riskVarianceOk, riskAssessOk,
+  riskToleranceOk, riskShapeTolerance, riskInsurerBps, riskLoad, riskGap,
+  riskCurveDelta, riskCurveSource, riskEvalBuild,
+  riskEngineering, riskEval, riskReqOk, riskMake
+in {
+// Deployer identity helpers. r-cash owns accounts; r-sure only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+  contract nowHeight(ret) = {
+    new rCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        new kCh in {
+          Root!("resolve", "component:clock", 1, *kCh) |
+          for (@r <- kCh) {
+            match r {
+              (true, uri, _) => {
+                new cCh in {
+                  rl!(uri, *cCh) |
+                  for (Clock <- cCh) { Clock!("now", *ret) }
+                }
+              }
+              _ => { ret!((false, "clock unavailable")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract isPaused(ret) = {
+    new rCh, kCh, pCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", "component:admin", 1, *kCh) |
+        for (@r <- kCh) {
+          match r {
+            (true, uri, _) => {
+              new cCh in {
+                rl!(uri, *cCh) |
+                for (SureAdmin <- cCh) {
+                  SureAdmin!("isPaused", *pCh) |
+                  for (@p <- pCh) {
+                    match p {
+                      (true, paused) => { ret!(paused) }
+                      _ => { ret!(true) }
+                    }
+                  }
+                }
+              }
+            }
+            _ => { ret!(true) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskClassOk(@class, ret) = {
+    if (class == "engineering" || class == "property" || class == "equipment"
+        || class == "liability" || class == "marine" || class == "cyber") {
+      ret!((true, Nil))
+    } else { ret!((false, "class")) }
+  } |
+
+  contract evidenceOk(@evidence, @i, ret) = {
+    if (i >= evidence.length()) { ret!((true, Nil)) }
+    else {
+      match evidence.nth(i) {
+        e => {
+          match (e.get("kind"), e.get("hash")) {
+            (kind, hash) => {
+              if (kind == Nil || hash == Nil) { ret!((false, "evidence")) }
+              else {
+                if (hash.length() == 0 || hash.length() > 128) {
+                  ret!((false, "evidence hash"))
+                } else { evidenceOk!(evidence, i + 1, *ret) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract triOk(@tri, ret) = {
+    match (tri.get("exposureRef"), tri.get("probabilityBasis"),
+           tri.get("consequenceBasis"), tri.get("consequenceRef")) {
+      (a, b, c, d) => {
+        if (a == Nil || b == Nil || c == Nil || d == Nil) {
+          ret!((false, "tri-test"))
+        } else {
+          if (a.length() == 0 || b.length() == 0 || c.length() == 0 || d.length() == 0) {
+            ret!((false, "tri-test"))
+          } else { ret!((true, Nil)) }
+        }
+      }
+    }
+  } |
+
+  contract riskReqOk(@req, ret) = {
+    match (req.get("class"), req.get("assetRef"), req.get("evidence"),
+           req.get("triTest"), req.get("periodStart"), req.get("periodEnd"),
+           req.get("declaredValue"), req.get("requestedLimit"),
+           req.get("requestedDeductible")) {
+      (class, assetRef, evidence, tri, start, end, value, limit, deductible) => {
+        if (class == Nil || assetRef == Nil || evidence == Nil || tri == Nil
+            || start == Nil || end == Nil || value == Nil || limit == Nil
+            || deductible == Nil) {
+          ret!((false, "fields"))
+        } else {
+          new clCh, evCh, tCh in {
+            riskClassOk!(class, *clCh) |
+            evidenceOk!(evidence, 0, *evCh) |
+            triOk!(tri, *tCh) |
+            for (@cl <- clCh; @ev <- evCh; @t <- tCh) {
+              match (cl, ev, t) {
+                ((true, Nil), (true, Nil), (true, Nil)) => {
+                  new varCh in {
+                    riskVarianceOk!(req.get("variance"), evidence, *varCh) |
+                    for (@vr <- varCh) {
+                      match vr {
+                        (false, reason) => { ret!((false, reason)) }
+                        (true, Nil) => {
+                          if (start >= end || value < 1 || limit < 1
+                              || deductible < 0) {
+                            ret!((false, "terms"))
+                          } else {
+                            match (assetRef.get("kind"), assetRef.get("hash")) {
+                              (kind, hash) => {
+                                if (kind == Nil || hash == Nil
+                                    || hash.length() == 0) {
+                                  ret!((false, "asset"))
+                                } else { ret!((true, Nil)) }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                _ => { ret!((false, "fields")) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskComponent(@key, ret) = {
+    new rCh, Root, kCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", key, 1, *kCh) |
+        for (@r <- kCh) {
+          match r {
+            (true, uri, _) => {
+              new cCh in {
+                rl!(uri, *cCh) |
+                for (C <- cCh) { ret!((true, *C)) }
+              }
+            }
+            _ => { ret!((false, "unavailable", key)) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskEvidenceHas(@evidence, @i, @uri, @hash, ret) = {
+    if (i >= evidence.length()) { ret!(false) }
+    else {
+      match evidence.nth(i) {
+        e => {
+          if (e.get("kind") == "rgen:kasset"
+              && e.get("uri") == uri && e.get("hash") == hash) {
+            ret!(true)
+          } else { riskEvidenceHas!(evidence, i + 1, uri, hash, *ret) }
+        }
+      }
+    }
+  } |
+
+  contract riskVarianceOk(@variance, @evidence, ret) = {
+    match variance {
+      Nil => { ret!((true, Nil)) }
+      v => {
+        match (v.get("source"), v.get("kassetUri"), v.get("varianceBps"),
+               v.get("evidenceHash")) {
+          (source, uri, bps, hash) => {
+            if (source != "attested" || uri == Nil || bps == Nil || hash == Nil
+                || uri.length() == 0 || uri.length() > 256
+                || hash.length() == 0 || hash.length() > 128
+                || bps < 0 || bps > 10000) {
+              ret!((false, "attestation"))
+            } else {
+              new eCh in {
+                riskEvidenceHas!(evidence, 0, uri, hash, *eCh) |
+                for (@ok <- eCh) {
+                  if (ok) { ret!((true, Nil)) }
+                  else { ret!((false, "attestation binding")) }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskToleranceOk(@tolerance, @shapeTolerance, ret) = {
+    match tolerance {
+      Nil => { riskShapeTolerance!(2000, shapeTolerance, *ret) }
+      t => {
+        if (t < 0 || t > 10000) { ret!((false, "tolerance")) }
+        else { riskShapeTolerance!(t, shapeTolerance, *ret) }
+      }
+    }
+  } |
+
+  contract riskShapeTolerance(@tolerance, @shapeTolerance, ret) = {
+    match shapeTolerance {
+      Nil => { ret!((true, tolerance, tolerance)) }
+      s => {
+        if (s < 0 || s > 10000) { ret!((false, "tolerance")) }
+        else { ret!((true, tolerance, s)) }
+      }
+    }
+  } |
+
+  contract riskAssessOk(@a, ret) = {
+    match (a.get("expectedLoss"), a.get("varianceBps"),
+           a.get("quotedPremium"), a.get("loadBps"),
+           a.get("basisHash"), a.get("toleranceBps"),
+           a.get("shapeToleranceBps"), a.get("lossCurve")) {
+      (loss, variance, premium, load, basis, tolerance, shapeTolerance, lossCurve) => {
+        if (loss == Nil || premium == Nil || load == Nil || basis == Nil
+            || (variance == Nil && lossCurve == Nil)) {
+          ret!((false, "fields"))
+        } else {
+          if (loss < 1 || loss > 1000000000000
+              || (variance != Nil && (variance < 0 || variance > 10000))
+              || premium < 1 || premium > 1000000000000
+              || load < 0 || load > 10000
+              || basis.length() == 0 || basis.length() > 128) {
+            ret!((false, "assessment"))
+          } else {
+            new tCh in {
+              riskToleranceOk!(tolerance, shapeTolerance, *tCh) |
+              for (@t <- tCh) {
+                match t {
+                  (false, reason) => { ret!((false, reason)) }
+                  (true, toleranceBps, shapeToleranceBps) => {
+                    ret!((true, {
+                      "expectedLoss": loss,
+                      "varianceBps": variance,
+                      "quotedPremium": premium,
+                      "loadBps": load,
+                      "basisHash": basis,
+                      "toleranceBps": toleranceBps,
+                      "shapeToleranceBps": shapeToleranceBps,
+                      "lossCurve": lossCurve
+                    }))
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskInsurerBps(@SureMath, @insurerBps, @lossCurve, ret) = {
+    match insurerBps {
+      Nil => {
+        match lossCurve {
+          Nil => { ret!((false, "assessment")) }
+          curve => {
+            new cCh in {
+              @SureMath!("curveStats", curve, *cCh) |
+              for (@c <- cCh) {
+                match c {
+                  (true, stats) => { ret!((true, stats.get("varianceBps"), stats)) }
+                  _ => { ret!((false, "curve")) }
+                }
+              }
+            }
+          }
+        }
+      }
+      bps => { ret!((true, bps, Nil)) }
+    }
+  } |
+
+  contract riskLoad(@SureMath, @expectedLoss, @insurerBps, @loadBps, ret) = {
+    if (insurerBps < 0) { ret!((false, "assessment")) }
+    else {
+      if (insurerBps > 10000) {
+        new lCh in {
+          @SureMath!("loadedPremium", expectedLoss, 10000, loadBps, *lCh) |
+          for (@l <- lCh) {
+            match l {
+              (true, minimumPremium) => { ret!((true, 10000, true, minimumPremium)) }
+              _ => { ret!((false, "math")) }
+            }
+          }
+        }
+      } else {
+        new lCh in {
+          @SureMath!("loadedPremium", expectedLoss, insurerBps, loadBps, *lCh) |
+          for (@l <- lCh) {
+            match l {
+              (true, minimumPremium) => { ret!((true, insurerBps, false, minimumPremium)) }
+              _ => { ret!((false, "math")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskGap(@SureMath, @engineeringBps, @insurerBps, @toleranceBps, ret) = {
+    if (insurerBps > 10000) {
+      @SureMath!("varianceGap", engineeringBps, 10000, toleranceBps, *ret)
+    } else {
+      @SureMath!("varianceGap", engineeringBps, insurerBps, toleranceBps, *ret)
+    }
+  } |
+
+  contract riskCurveDelta(@SureMath, @engineeringCurve, @lossCurve,
+                          @toleranceBps, @shapeToleranceBps, ret) = {
+    match engineeringCurve {
+      Nil => { ret!((true, Nil)) }
+      ec => {
+        match lossCurve {
+          Nil => { ret!((true, Nil)) }
+          lc => {
+            new cCh in {
+              @SureMath!("curveDelta", ec, lc, toleranceBps, shapeToleranceBps, *cCh) |
+              for (@c <- cCh) { ret!(c) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskCurveSource(@engineeringCurve, @lossCurve, ret) = {
+    match (engineeringCurve, lossCurve) {
+      (Nil, Nil) => { ret!("scalar-scalar") }
+      (Nil, _) => { ret!("scalar-curve") }
+      (_, Nil) => { ret!("curve-scalar") }
+      _ => { ret!("curve-curve") }
+    }
+  } |
+
+  contract riskEngineering(@s, ret) = {
+    match s.get("varianceAttestation") {
+      v => {
+        if (v != Nil) {
+          ret!((true, v.get("varianceBps"),
+                {"source": "attested",
+                 "varianceBps": v.get("varianceBps"),
+                 "kasset": v.get("kassetUri"),
+                 "kassetUri": v.get("kassetUri"),
+                 "evidenceHash": v.get("evidenceHash")}))
+        } else {
+          match s.get("assetRef").get("uri") {
+            uri => {
+              if (uri == Nil || uri.length() == 0) {
+                ret!((false, "variance source"))
+              } else {
+                new rCh in {
+                  riskComponent!("component:rgen", *rCh) |
+                  for (@r <- rCh) {
+                    match r {
+                      (true, Rgen) => {
+                        new vCh in {
+                          @Rgen!("variance", uri, *vCh) |
+                          for (@vr <- vCh) {
+                            match vr {
+                              (true, record) => {
+                                ret!((true, record.get("varianceBps"), record))
+                              }
+                              _ => { ret!(vr) }
+                            }
+                          }
+                        }
+                      }
+                      _ => { ret!((false, "rgen unavailable")) }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract riskEval(@engineeringBps, @engineeringRecord, @insurerBps, @lossCurve,
+                    @toleranceBps, @shapeToleranceBps, @expectedLoss, @loadBps, ret) = {
+    new mCh in {
+      riskComponent!("component:suremath", *mCh) |
+      for (@m <- mCh) {
+        match m {
+          (true, SureMath) => {
+            new iCh in {
+              riskInsurerBps!(SureMath, insurerBps, lossCurve, *iCh) |
+              for (@iv <- iCh) {
+                match iv {
+                  (false, reason) => { ret!((false, reason)) }
+                  (true, insurerRate, lossStats) => {
+                    match engineeringRecord.get("curve") {
+                      Nil => {
+                        riskEvalBuild!(SureMath, engineeringBps, Nil, Nil,
+                                       insurerRate, lossStats, lossCurve,
+                                       toleranceBps, shapeToleranceBps,
+                                       expectedLoss, loadBps, *ret)
+                      }
+                      engineeringCurve => {
+                        riskEvalBuild!(SureMath, engineeringBps, engineeringCurve,
+                                       engineeringRecord.get("curveStats"),
+                                       insurerRate, lossStats, lossCurve,
+                                       toleranceBps, shapeToleranceBps,
+                                       expectedLoss, loadBps, *ret)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "math unavailable")) }
+        }
+      }
+    }
+  } |
+
+  contract riskEvalBuild(@SureMath, @engineeringBps, @engineeringCurve,
+                         @engineeringStats, @insurerBps, @lossStats, @lossCurve,
+                         @toleranceBps, @shapeToleranceBps, @expectedLoss,
+                         @loadBps, ret) = {
+    new gCh, lCh, cCh, sCh in {
+      riskGap!(SureMath, engineeringBps, insurerBps, toleranceBps, *gCh) |
+      riskLoad!(SureMath, expectedLoss, insurerBps, loadBps, *lCh) |
+      riskCurveDelta!(SureMath, engineeringCurve, lossCurve, toleranceBps,
+                      shapeToleranceBps, *cCh) |
+      riskCurveSource!(engineeringCurve, lossCurve, *sCh) |
+      for (@g <- gCh; @l <- lCh; @c <- cCh; @source <- sCh) {
+        match (g, l, c) {
+          ((true, gap, flag), (true, pricingBps, clamped, minimumPremium),
+           (true, curveDelta)) => {
+            match curveDelta {
+              Nil => {
+                ret!((true, {
+                  "engineeringBps": engineeringBps,
+                  "insurerBps": insurerBps,
+                  "pricingBps": pricingBps,
+                  "rateClamped": clamped,
+                  "gapBps": gap,
+                  "flagged": flag,
+                  "minimumPremium": minimumPremium,
+                  "toleranceBps": toleranceBps,
+                  "shapeToleranceBps": shapeToleranceBps,
+                  "engineeringCurve": engineeringCurve,
+                  "engineeringCurveStats": engineeringStats,
+                  "lossCurve": lossCurve,
+                  "lossCurveStats": lossStats,
+                  "curveDelta": Nil,
+                  "curveFlagged": false,
+                  "curveSource": source,
+                  "expectedLoss": expectedLoss
+                }))
+              }
+              delta => {
+                ret!((true, {
+                  "engineeringBps": engineeringBps,
+                  "insurerBps": insurerBps,
+                  "pricingBps": pricingBps,
+                  "rateClamped": clamped,
+                  "gapBps": gap,
+                  "flagged": flag,
+                  "minimumPremium": minimumPremium,
+                  "toleranceBps": toleranceBps,
+                  "shapeToleranceBps": shapeToleranceBps,
+                  "engineeringCurve": engineeringCurve,
+                  "engineeringCurveStats": engineeringStats,
+                  "lossCurve": lossCurve,
+                  "lossCurveStats": lossStats,
+                  "curveDelta": delta,
+                  "curveFlagged": delta.get("curveFlagged"),
+                  "curveSource": source,
+                  "expectedLoss": expectedLoss
+                }))
+              }
+            }
+          }
+          _ => { ret!((false, "math")) }
+        }
+      }
+    }
+  } |
+
+  contract riskMake(@ownerId, @req, ret) = {
+  new cfgOwnerId, cfgReq in {
+    cfgOwnerId!(ownerId) |
+    cfgReq!(req) |
+    for (@ownerIdV <- cfgOwnerId; @reqV <- cfgReq) {
+
+    new Risk, riskState, uriCh in {
+      riskState!({
+        "id": "",
+        "uri": "",
+        "insured": ownerIdV,
+        "broker": reqV.get("broker"),
+        "class": reqV.get("class"),
+        "assetRef": reqV.get("assetRef"),
+        "declaredValue": reqV.get("declaredValue"),
+        "requestedLimit": reqV.get("requestedLimit"),
+        "requestedDeductible": reqV.get("requestedDeductible"),
+        "periodStart": reqV.get("periodStart"),
+        "periodEnd": reqV.get("periodEnd"),
+        "evidence": reqV.get("evidence"),
+        "triTest": reqV.get("triTest"),
+        "varianceAttestation": reqV.get("variance"),
+        "variance": Nil,
+        "gapAcknowledged": false,
+        "assessment": Nil,
+        "status": "submitted",
+        "slipUri": Nil,
+        "nonce": 0
+      }) |
+
+      contract Risk(@"info", ret2) = {
+        for (@s <<- riskState) { ret2!((true, s)) }
+      } |
+
+      contract Risk(@"evidence", ret2) = {
+        for (@s <<- riskState) { ret2!((true, s.get("evidence"))) }
+      } |
+
+      contract Risk(@"variance", ret2) = {
+        for (@s <<- riskState) { ret2!((true, s.get("variance"))) }
+      } |
+
+      contract Risk(@"addEvidence", dId, @evidence, ret2) = {
+        new aCh in {
+          authOwner!(*dId, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- riskState) {
+              if (s.get("status") == "declined" || s.get("status") == "expired") {
+                riskState!(s) | ret2!((false, "closed"))
+              } else {
+                riskState!(s.set("evidence", s.get("evidence") ++ evidence)
+                            .set("nonce", s.get("nonce") + 1)) |
+                ret2!((true, Nil))
+              }
+            }
+          }
+        }
+      } |
+
+      contract Risk(@"assess", dId, @assessment, ret2) = {
+        new aCh in {
+          authOwner!(*dId, *aCh) |
+          for (@(true, who) <- aCh) {
+            // Peek, then await r-gen and SureMath outside the cell. The commit
+            // below re-reads the cell and refuses "stale" if anything changed.
+            for (@s <<- riskState) {
+              if (s.get("status") == "declined" || s.get("status") == "expired"
+                  || s.get("status") == "accepted") {
+                ret2!((false, "closed"))
+              } else {
+                new okCh in {
+                  riskAssessOk!(assessment, *okCh) |
+                  for (@ok <- okCh) {
+                    match ok {
+                      (false, reason) => { ret2!((false, reason)) }
+                      (true, a) => {
+                        new engCh in {
+                          riskEngineering!(s, *engCh) |
+                          for (@eng <- engCh) {
+                            match eng {
+                              (false, reason) => { ret2!((false, reason)) }
+                              (true, engineeringBps, record) => {
+                                new evalCh in {
+                                  riskEval!(engineeringBps, record,
+                                            a.get("varianceBps"), a.get("lossCurve"),
+                                            a.get("toleranceBps"), a.get("shapeToleranceBps"),
+                                            a.get("expectedLoss"), a.get("loadBps"), *evalCh) |
+                                  for (@ev <- evalCh) {
+                                    match ev {
+                                      (false, reason) => { ret2!((false, reason)) }
+                                      (true, evalMap) => {
+                                        if (a.get("quotedPremium") < evalMap.get("minimumPremium")) {
+                                          ret2!((false, "premium floor"))
+                                        } else {
+                                          for (@s2 <- riskState) {
+                                            if (s2.get("nonce") != s.get("nonce")
+                                                || s2.get("status") != s.get("status")) {
+                                              riskState!(s2) |
+                                              ret2!((false, "stale"))
+                                            } else {
+                                              riskState!(
+                                                s2.set("assessment",
+                                                    assessment.set("by", who)
+                                                      .set("at", 0)
+                                                      .set("engineering", record)
+                                                      .set("eval", evalMap)
+                                                      .set("gapBps", evalMap.get("gapBps"))
+                                                      .set("gapFlag", evalMap.get("flagged"))
+                                                      .set("minimumPremium", evalMap.get("minimumPremium"))
+                                                      .set("toleranceBps", evalMap.get("toleranceBps"))
+                                                      .set("shapeToleranceBps", evalMap.get("shapeToleranceBps")))
+                                                  .set("variance", {
+                                                    "engineeringBps": engineeringBps,
+                                                    "insurerBps": evalMap.get("insurerBps"),
+                                                    "gapBps": evalMap.get("gapBps"),
+                                                    "flagged": evalMap.get("flagged"),
+                                                    "acknowledged": false,
+                                                    "source": record.get("source"),
+                                                    "minimumPremium": evalMap.get("minimumPremium"),
+                                                    "expectedLoss": a.get("expectedLoss"),
+                                                    "pricingBps": evalMap.get("pricingBps"),
+                                                    "rateClamped": evalMap.get("rateClamped"),
+                                                    "curveDelta": evalMap.get("curveDelta"),
+                                                    "curveFlagged": evalMap.get("curveFlagged"),
+                                                    "curveSource": evalMap.get("curveSource"),
+                                                    "engineeringCurve": evalMap.get("engineeringCurve"),
+                                                    "engineeringCurveStats": evalMap.get("engineeringCurveStats"),
+                                                    "lossCurve": evalMap.get("lossCurve"),
+                                                    "lossCurveStats": evalMap.get("lossCurveStats"),
+                                                    "kassetUri": record.get("kasset"),
+                                                    "declaredSummaryBps": record.get("declaredSummaryBps")})
+                                                  .set("gapAcknowledged", false)
+                                                  .set("status", "assessed")
+                                                  .set("nonce", s2.get("nonce") + 1)) |
+                                              ret2!((true, Nil))
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract Risk(@"accept", dId, ret2) = {
+    new pauseCh in {
+      isPaused!(*pauseCh) |
+      for (@paused <- pauseCh) {
+        if (paused) { ret2!((false, "paused")) }
+        else {
+        new aCh in {
+          authOwner!(*dId, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- riskState) {
+              if (who != s.get("insured") && who != s.get("broker")) {
+                riskState!(s) | ret2!((false, "not insured"))
+              } else {
+                if (s.get("status") != "assessed") {
+                  riskState!(s) | ret2!((false, "not assessed"))
+                } else {
+                  match s.get("variance") {
+                    Nil => { riskState!(s) | ret2!((false, "not assessed")) }
+                    variance => {
+                      riskState!(s.set("status", "accepted")
+                                  .set("variance", variance.set("acknowledged", true))
+                                  .set("gapAcknowledged", true)
+                                  .set("nonce", s.get("nonce") + 1)) |
+                      ret2!((true, Nil))
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        }
+      }
+    }
+    } |
+
+      contract Risk(@"decline", dId, @reasonHash, ret2) = {
+    new pauseCh in {
+      isPaused!(*pauseCh) |
+      for (@paused <- pauseCh) {
+        if (paused) { ret2!((false, "paused")) }
+        else {
+        new aCh in {
+          authOwner!(*dId, *aCh) |
+          for (@(true, who) <- aCh) {
+            for (@s <- riskState) {
+              riskState!(s.set("status", "declined")
+                          .set("assessment", {"reasonHash": reasonHash})
+                          .set("nonce", s.get("nonce") + 1)) |
+              ret2!((true, Nil))
+            }
+          }
+        }
+
+        }
+      }
+    }
+    } |
+
+      contract Risk(@"expire", ret2) = {
+        new hCh in {
+          nowHeight!(*hCh) |
+          for (@h <- hCh) {
+            match h {
+              (true, now) => {
+                for (@s <- riskState) {
+                  if (now <= s.get("periodEnd")) {
+                    riskState!(s) | ret2!((false, "not expired"))
+                  } else {
+                    riskState!(s.set("status", "expired")
+                                .set("nonce", s.get("nonce") + 1)) |
+                    ret2!((true, Nil))
+                  }
+                }
+              }
+              _ => { ret2!(h) }
+            }
+          }
+        }
+      } |
+
+      rs!(bundle+{*Risk}, *uriCh) |
+      for (@uri <- uriCh) {
+        for (@s2 <- riskState) {
+          riskState!(s2.set("uri", uri)) |
+          for (@b <- riskBookState) {
+            match "rsk:" ++ ownerIdV ++ ":" ++ b.get("count").toString() {
+              id2 => {
+                match b.get("byInsured").get(ownerIdV) {
+                  Nil => {
+                    riskBookState!(b.set("risks", b.get("risks").set(id2, uri))
+                      .set("byInsured", b.get("byInsured").set(ownerIdV, [id2]))
+                      .set("count", b.get("count") + 1)) |
+                    for (@s3 <- riskState) {
+                      riskState!(s3.set("id", id2)) |
+                      ret!((true, id2, uri))
+                    }
+                  }
+                  ids => {
+                    riskBookState!(b.set("risks", b.get("risks").set(id2, uri))
+                      .set("byInsured", b.get("byInsured").set(ownerIdV, ids ++ [id2]))
+                      .set("count", b.get("count") + 1)) |
+                    for (@s3 <- riskState) {
+                      riskState!(s3.set("id", id2)) |
+                      ret!((true, id2, uri))
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    }
+  }
+} |
+
+  contract RiskBook(@"submit", dId, @req, ret) = {
+    new pauseCh in {
+      isPaused!(*pauseCh) |
+      for (@paused <- pauseCh) {
+        if (paused) { ret!((false, "paused")) }
+        else {
+    new aCh, okCh in {
+      authOwner!(*dId, *aCh) |
+      riskReqOk!(req, *okCh) |
+      for (@(true, ownerId) <- aCh; @ok <- okCh) {
+        match ok {
+          (false, reason) => { ret!((false, reason)) }
+          (true, Nil) => { riskMake!(ownerId, req, *ret) }
+        }
+      }
+    }
+
+        }
+      }
+    }
+    } |
+
+  contract RiskBook(@"risk", @riskId, ret) = {
+    for (@b <<- riskBookState) {
+      match b.get("risks").get(riskId) {
+        Nil => { ret!((false, "unknown risk")) }
+        uri => { ret!((true, uri)) }
+      }
+    }
+  } |
+
+  contract RiskBook(@"risks", ret) = {
+    for (@b <<- riskBookState) { ret!((true, b.get("risks"))) }
+  } |
+
+  contract RiskBook(@"byInsured", @insured, ret) = {
+    for (@b <<- riskBookState) {
+      match b.get("byInsured").get(insured) {
+        Nil => { ret!((true, [])) }
+        ids => { ret!((true, ids)) }
+      }
+    }
+  } |
+
+  contract RiskBook(@"byBroker", @broker, ret) = {
+    for (@b <<- riskBookState) {
+      match b.get("byBroker").get(broker) {
+        Nil => { ret!((true, [])) }
+        ids => { ret!((true, ids)) }
+      }
+    }
+  } |
+
+  riskBookState!({
+    "risks": {},
+    "byInsured": {},
+    "byBroker": {},
+    "count": 0
+  }) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*RiskBook}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:risk-book", uri, 1, "risk",
+            *deployerId, *ack) |
+      for (@r <- ack) { deployId!([uri]) }
+    }
+  }
+}

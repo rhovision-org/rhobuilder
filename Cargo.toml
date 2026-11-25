@@ -23,6 +23,11 @@ edition = "2021"
 license = "AGPL-3.0-only"
 rust-version = "1.95"
 repository = "https://github.com/rhovision-org/rhobuilder"
+homepage = "https://github.com/PatrickMockridge"
+authors = ["Patrick Mockridge <patrickmockridge@gmail.com>"]
+description = "DeepSeek Harness dApp builder for rhovision on rholo"
+keywords = ["rholang", "rholo", "lean4", "deepseek-harness", "dapp"]
+categories = ["command-line-utilities", "development-tools"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -48,4 +53,5 @@ serde_json = "1"
 thiserror = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 sha2 = "0.10"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+rcash-sdk = { git = "https://github.com/rhovision-org/r-cash", rev = "49b441dea4f5561992387ed670ab263fcd5dd164", default-features = false, features = ["native"] }

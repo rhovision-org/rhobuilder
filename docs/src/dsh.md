@@ -27,9 +27,14 @@ overlay, then runs DSH.
 - `rhobuilder_registry` — list/get/graph/verify/drift primitives.
 - `rhobuilder_design` — validate or report a design.
 - `rhobuilder_scaffold` — plan (default) or apply a skeleton.
-- `rhobuilder_check` — static/formal/full gates.
+- `rhobuilder_check` — static/formal/full project gates via its Makefile.
 - `rhobuilder_plan` — read-only deploy plan.
-- `rhobuilder_chain` — probe/status/explore/deploy-status, read-only.
+- `rhobuilder_chain` — probe/status/deploy-status, read-only.
+
+The bridge maps every tool to a real CLI subcommand. `registry verify` is read-only by
+construction; the obsolete `--read-only` flag is gone. `chain explore` is not exposed:
+the node's exploratory deploy cannot see the native registry, so the CLI uses a signed
+`chain call` only for local suites, never for DSH.
 
 The plugin imports nothing from `@deepseek-ai/*`; it mounts by absolute path with no
 `node_modules`. Its `spawn` is trusted host code, so the surface is narrow and never
@@ -49,6 +54,8 @@ presets. Web and headless compose presets differently: web overwrites
 ## Versions and permissions
 
 Tested on DSH `0.2.2-rc.5` with Node 22.22.2. `0.2.3-alpha.2` needs Node 24.22.3+.
+A live model session has not been run because `DEEPSEEK_API_KEY` is unset; `--check`
+reports that honestly. The overlay and plugin contract are validated.
 The launcher sets `DSH_PERMISSION_MODE=workspace-write`, a repo-local `DSH_HOME`, and never
 uses `danger-full-access` or `sdk-minimal`.
 

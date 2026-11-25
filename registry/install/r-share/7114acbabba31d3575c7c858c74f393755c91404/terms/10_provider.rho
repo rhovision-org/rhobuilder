@@ -1,0 +1,534 @@
+// ProviderBook + one ProviderContract per owner.
+// Placeholders: __ROOT_URI__.
+new
+  ProviderBook, providerBookState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  adminGuard, adminsText, authIsOwner, authOwner, providerAdmins, providerPayments,
+  adminsValid,
+  resolveComponent
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract adminGuard(@domain, @nonce, @action, @args, @sigs,
+                    @admins, @threshold, ret) = {
+  new rCh, Root, gCh, gc in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", "component:admin-guard", 1, *gCh) |
+      for (@r <- gCh) {
+        match r {
+          (true, uri, _) => {
+            rl!(uri, *gc) |
+            for (AdminGuard <- gc) {
+              AdminGuard!("verify", domain, nonce, action, args, sigs,
+                          admins, threshold, *ret)
+            }
+          }
+          _ => { ret!((false, "below threshold")) }
+        }
+      }
+    }
+  }
+} |
+// Canonical text for an admin set. The pinned node has no `toString` on a list,
+// so AdminGuard cannot encode `[newAdmins, newThreshold]` directly. Join the
+// compressed public keys as comma-separated hex and sign that string instead.
+contract adminsText(@admins, @i, @acc, ret2) = {
+  if (i >= admins.length()) {
+    ret2!(acc)
+  } else {
+    match admins.nth(i) {
+      a => {
+        new nextCh in {
+          if (i == 0) { nextCh!(a.bytesToHex()) }
+          else { nextCh!(acc ++ "," ++ a.bytesToHex()) } |
+          for (@next <- nextCh) {
+            adminsText!(admins, i + 1, next, *ret2)
+          }
+        }
+      }
+    }
+  }
+} |
+// Admin-set validation shared by Root, ShareAdmin and the owner-scoped objects.
+// The signed payload shape is not changed; this helper runs after verification.
+// One recursive contract keeps the inlined contract count within the project budget.
+
+contract adminsValid(@admins, @threshold, @i, @seen, ret) = {
+  if (threshold < 2) {
+    ret!((false, "threshold"))
+  } else {
+    if (admins.length() < 2) {
+      ret!((false, "threshold"))
+    } else {
+      if (threshold > admins.length()) {
+        ret!((false, "threshold"))
+      } else {
+      if (i >= admins.length()) {
+        ret!((true, Nil))
+      } else {
+        match admins.nth(i) {
+          a => {
+            new hCh in {
+              hCh!(a.bytesToHex()) |
+              for (@k <- hCh) {
+                if (seen.get(k) != Nil) {
+                  ret!((false, "duplicate key"))
+                } else {
+                  adminsValid!(admins, threshold, i + 1,
+                               seen.set(k, true), *ret)
+                }
+              }
+            }
+          }
+        }
+      }
+      }
+    }
+  }
+} |
+
+
+  contract providerPayments(ret) = {
+    new rCh, Root, pCh, cCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", "component:payments", 1, *pCh) |
+        for (@r <- pCh) {
+          match r {
+            (true, uri, _) => {
+              rl!(uri, *cCh) |
+              for (Payments <- cCh) { ret!((true, *Payments)) }
+            }
+            _ => { ret!(r) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract providerAdmins(ret) = {
+    new cCh in {
+      resolveComponent!("component:admin", *cCh) |
+      for (@r <- cCh) {
+        match r {
+          (true, ShareAdmin) => { @ShareAdmin!("keys", *ret) }
+          _ => { ret!(r) }
+        }
+      }
+    }
+  } |
+
+  contract ProviderBook(@"register", dId, @profile, ret) = {
+    new oCh in {
+      authOwner!(*dId, *oCh) |
+      for (@o <- oCh) {
+        match o {
+          (true, ownerId) => {
+            for (@s <<- providerBookState) {
+              match s.get(ownerId) {
+                Nil => {
+                  new pCh, aCh, eCh in {
+                    providerPayments!(*pCh) |
+                    providerAdmins!(*aCh) |
+                    for (@p <- pCh; @a <- aCh) {
+                      match p {
+                        (true, Payments) => {
+                          match a {
+                            (true, admins, threshold) => {
+                      @Payments!("ensureAccount", *dId, *eCh) |
+                      for (@e <- eCh) {
+                        match e {
+                          (true, account, accountOwner) => {
+                            if (accountOwner != ownerId) {
+                              ret!((false, "account"))
+                            } else {
+                              for (@s2 <- providerBookState) {
+                                match s2.get(ownerId) {
+                                  Nil => {
+                              new ProviderContract, providerState, uCh in {
+                                providerState!({
+                                  "providerId": ownerId,
+                                  "profile": profile,
+                                  "status": "active",
+                                  "listings": {},
+                                  "ops": {},
+                                  "nonce": 0,
+                                  "admins": admins,
+                                  "threshold": threshold
+                                }) |
+
+                                contract ProviderContract(@"info", ret2) = {
+                                  for (@st <<- providerState) { ret2!((true, st)) }
+                                } |
+                                contract ProviderContract(@"isActive", ret2) = {
+                                  for (@st <<- providerState) {
+                                    ret2!((true, st.get("status") == "active"))
+                                  }
+                                } |
+                                contract ProviderContract(@"owner", ret2) = {
+                                  for (@st <<- providerState) {
+                                    ret2!((true, st.get("providerId")))
+                                  }
+                                } |
+                                contract ProviderContract(@"profile", ret2) = {
+                                  for (@st <<- providerState) {
+                                    ret2!((true, st.get("profile")))
+                                  }
+                                } |
+                                contract ProviderContract(@"listings", ret2) = {
+                                  for (@st <<- providerState) {
+                                    ret2!((true, st.get("listings")))
+                                  }
+                                } |
+                                contract ProviderContract(@"listing", @listingId, ret2) = {
+                                  for (@st <<- providerState) {
+                                    match st.get("listings").get(listingId) {
+                                      Nil => { ret2!((false, "unknown listing")) }
+                                      entry => {
+                                        if (entry.get("status") == "removed") {
+                                          ret2!((false, "removed"))
+                                        } else {
+                                          ret2!((true, entry))
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"listingUri", @listingId,
+                                                          ret2) = {
+                                  for (@st <<- providerState) {
+                                    match st.get("listings").get(listingId) {
+                                      Nil => { ret2!((false, "unknown listing")) }
+                                      entry => { ret2!((true, entry.get("uri"))) }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"checkOwner", dId2, ret2) = {
+                                  authIsOwner!(*dId2, ownerId, *ret2)
+                                } |
+                                contract ProviderContract(@"updateProfile", dId2,
+                                                          @newProfile, @opId, ret2) = {
+                                  for (@st <- providerState) {
+                                    if (st.get("ops").get(opId) != Nil) {
+                                      providerState!(st) | ret2!((true, Nil))
+                                    } else {
+                                      new oCh2 in {
+                                        authIsOwner!(*dId2, ownerId, *oCh2) |
+                                        for (@v <- oCh2) {
+                                          match v {
+                                            (true, Nil) => {
+                                              providerState!(st.set("profile", newProfile)
+                                                               .set("ops",
+                                                                    st.get("ops").set(opId, true))) |
+                                              ret2!((true, Nil))
+                                            }
+                                            _ => { providerState!(st) | ret2!(v) }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"pause", dId2, ret2) = {
+                                  for (@st <- providerState) {
+                                    new oCh2 in {
+                                      authIsOwner!(*dId2, ownerId, *oCh2) |
+                                      for (@v <- oCh2) {
+                                        match v {
+                                          (true, Nil) => {
+                                            if (st.get("status") == "paused") {
+                                              providerState!(st) | ret2!((false, "already"))
+                                            } else {
+                                              providerState!(st.set("status", "paused")) |
+                                              ret2!((true, Nil))
+                                            }
+                                          }
+                                          _ => { providerState!(st) | ret2!(v) }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"resume", dId2, ret2) = {
+                                  for (@st <- providerState) {
+                                    new oCh2 in {
+                                      authIsOwner!(*dId2, ownerId, *oCh2) |
+                                      for (@v <- oCh2) {
+                                        match v {
+                                          (true, Nil) => {
+                                            if (st.get("status") == "active") {
+                                              providerState!(st) | ret2!((false, "already"))
+                                            } else {
+                                              providerState!(st.set("status", "active")) |
+                                              ret2!((true, Nil))
+                                            }
+                                          }
+                                          _ => { providerState!(st) | ret2!(v) }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"registerListing", dId2,
+                                                          @listingId, @uri, @kind,
+                                                          @termsHash, ret2) = {
+                                  for (@st <- providerState) {
+                                    if (st.get("status") != "active") {
+                                      providerState!(st) | ret2!((false, "paused"))
+                                    } else {
+                                      match st.get("listings").get(listingId) {
+                                        Nil => {
+                                          new oCh2 in {
+                                            authIsOwner!(*dId2, ownerId, *oCh2) |
+                                            for (@v <- oCh2) {
+                                              match v {
+                                                (true, Nil) => {
+                                                  providerState!(
+                                                    st.set("listings",
+                                                           st.get("listings").set(
+                                                             listingId,
+                                                             {"uri": uri, "kind": kind,
+                                                              "termsHash": termsHash,
+                                                              "status": "active"}))) |
+                                                  ret2!((true, Nil))
+                                                }
+                                                _ => { providerState!(st) | ret2!(v) }
+                                              }
+                                            }
+                                          }
+                                        }
+                                        _ => { providerState!(st) | ret2!((false, "listing exists")) }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"removeListing", dId2,
+                                                          @listingId, ret2) = {
+                                  for (@st <- providerState) {
+                                    new oCh2 in {
+                                      authIsOwner!(*dId2, ownerId, *oCh2) |
+                                      for (@v <- oCh2) {
+                                        match v {
+                                          (true, Nil) => {
+                                            match st.get("listings").get(listingId) {
+                                              Nil => {
+                                                providerState!(st) | ret2!((false, "unknown listing"))
+                                              }
+                                              entry => {
+                                                new lCh, delCh in {
+                                                  rl!(entry.get("uri"), *lCh) |
+                                                  for (Listing <- lCh) {
+                                                    Listing!("delist", *dId2,
+                                                             *delCh) |
+                                                    for (@r <- delCh) {
+                                                      match r {
+                                                        (true, Nil) => {
+                                                          providerState!(
+                                                            st.set("listings",
+                                                              st.get("listings").set(
+                                                                listingId,
+                                                                entry.set("status", "removed")))) |
+                                                          ret2!((true, Nil))
+                                                        }
+                                                        _ => {
+                                                          providerState!(st) |
+                                                          ret2!(r)
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                          _ => { providerState!(st) | ret2!(v) }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"adminPause", @nonce,
+                                                          @sigs, ret2) = {
+                                  for (@st <- providerState) {
+                                    if (nonce <= st.get("nonce")) {
+                                      providerState!(st) | ret2!((false, "replay"))
+                                    } else {
+                                      new vCh in {
+                                        adminGuard!("provider:" ++ ownerId, nonce,
+                                                     "pause", [], sigs,
+                                                     st.get("admins"),
+                                                     st.get("threshold"), *vCh) |
+                                        for (@v <- vCh) {
+                                          match v {
+                                            (true, true) => {
+                                              providerState!(
+                                                st.set("status", "paused")
+                                                  .set("nonce", nonce)) |
+                                              ret2!((true, Nil))
+                                            }
+                                            _ => {
+                                              providerState!(st) |
+                                              ret2!((false, "below threshold"))
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract ProviderContract(@"setAdmins", @nonce,
+                                                          @newAdmins, @newThreshold,
+                                                          @sigs, ret2) = {
+                                  for (@st <- providerState) {
+                                    if (nonce <= st.get("nonce")) {
+                                      providerState!(st) | ret2!((false, "replay"))
+                                    } else {
+                                      new vCh, tCh in {
+                                        adminsText!(newAdmins, 0, "", *tCh) |
+                                        for (@adminsTextValue <- tCh) {
+                                          adminGuard!("provider:" ++ ownerId, nonce,
+                                                       "setAdmins",
+                                                       [adminsTextValue, newThreshold], sigs,
+                                                       st.get("admins"),
+                                                       st.get("threshold"), *vCh)
+                                        } |
+                                        for (@v <- vCh) {
+                                          match v {
+                                            (true, true) => {
+                                              new avCh in {
+                                                adminsValid!(newAdmins, newThreshold, 0, {}, *avCh) |
+                                                for (@av <- avCh) {
+                                                  match av {
+                                                    (true, Nil) => {
+                                                      providerState!(
+                                                        st.set("admins", newAdmins)
+                                                          .set("threshold", newThreshold)
+                                                          .set("nonce", nonce)) |
+                                                      ret2!((true, Nil))
+                                                    }
+                                                    _ => {
+                                                      providerState!(st) |
+                                                      ret2!(av)
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                            _ => {
+                                              providerState!(st) |
+                                              ret2!((false, "below threshold"))
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                } |
+                                rs!(bundle+{*ProviderContract}, *uCh) |
+                                for (@uri <- uCh) {
+                                  providerBookState!(s2.set(ownerId, uri)) |
+                                  ret!((true, uri, ownerId))
+                                }
+                                }
+                                }
+                                uri => { providerBookState!(s2) | ret!((true, uri, ownerId)) }
+                              }
+                              }
+                            }
+                          }
+                          _ => { ret!(e) }
+                        }
+                      }
+                          }
+                          _ => { ret!(a) }
+                        }
+                          }
+                          _ => { ret!(p) }
+                        }
+                    }
+                  }
+                }
+                uri => { ret!((true, uri, ownerId)) }
+              }
+            }
+          }
+          _ => { ret!(o) }
+        }
+      }
+    }
+  } |
+
+  contract ProviderBook(@"providerOf", @ownerId, ret) = {
+    for (@s <<- providerBookState) {
+      match s.get(ownerId) {
+        Nil => { ret!((false, "no provider")) }
+        uri => { ret!((true, uri)) }
+      }
+    }
+  } |
+
+  providerBookState!({}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*ProviderBook}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:provider-book", uri, 1, "provider", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

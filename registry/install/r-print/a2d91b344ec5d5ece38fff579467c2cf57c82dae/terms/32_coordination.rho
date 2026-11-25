@@ -1,0 +1,425 @@
+// CoordinationFactory: validates a publication coordination record and spawns its cell.
+// Provenance, not authority. Placeholders: __ROOT_URI__.
+new
+  CoordinationFactory, coordinationFactoryState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  coCanonical, coRole, coStatus, coMemberOk, coNowHeight,
+  coSubjectOk, coSubjectIdOk, coSignersOk, coSignersScan,
+  coCreateArgs, coCreateGo, coCreateStatus
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+
+  contract coCanonical(@publicationId, @publicationUri, ret) = {
+    new cCh in {
+      resolveComponent!("component:publication-factory", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Factory) => {
+            new iCh in {
+              @Factory!("issued", publicationId, *iCh) |
+              for (@i <- iCh) {
+                match i {
+                  (true, canonical) => {
+                    if (canonical.toString() == publicationUri) { ret!((true, Nil)) }
+                    else { ret!((false, "publication")) }
+                  }
+                  _ => { ret!((false, "publication")) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "publication")) }
+        }
+      }
+    }
+  } |
+
+  contract coRole(@publicationUri, @callerId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) { Publication!("roleOf", callerId, *ret) }
+    }
+  } |
+
+  contract coStatus(@publicationUri, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) { Publication!("status", *ret) }
+    }
+  } |
+
+  contract coMemberOk(@publicationUri, @memberId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) {
+        new mCh in {
+          Publication!("member", memberId, *mCh) |
+          for (@m <- mCh) {
+            match m {
+              (true, member) => {
+                if (member.get("status") == "active") { ret!((true, Nil)) }
+                else { ret!((false, "not signer")) }
+              }
+              _ => { ret!((false, "not signer")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coNowHeight(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract coSubjectOk(@subjectRef, ret) = {
+    match subjectRef.get("kind") {
+      "publication" => { coSubjectIdOk!(subjectRef, *ret) }
+      "edition" => { coSubjectIdOk!(subjectRef, *ret) }
+      "article" => { coSubjectIdOk!(subjectRef, *ret) }
+      "room" => { coSubjectIdOk!(subjectRef, *ret) }
+      "poll" => { coSubjectIdOk!(subjectRef, *ret) }
+      _ => { ret!((false, "subject")) }
+    }
+  } |
+
+  contract coSubjectIdOk(@subjectRef, ret) = {
+    match subjectRef.get("id") {
+      Nil => { ret!((false, "subject")) }
+      id => {
+        match subjectRef.get("uri") {
+          Nil => { ret!((false, "subject")) }
+          uri => {
+            if (id.length() == 0 || uri.length() == 0) { ret!((false, "subject")) }
+            else { ret!((true, Nil)) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coSignersScan(@publicationUri, @signers, ret) = {
+    if (signers.length() < 1 || signers.length() > 16) {
+      ret!((false, "signers"))
+    } else {
+      coSignersOk!(publicationUri, signers, 0, {}, *ret)
+    }
+  } |
+
+  contract coSignersOk(@publicationUri, @signers, @i, @seen, ret) = {
+    if (i >= signers.length()) {
+      ret!((true, Nil))
+    } else {
+      match signers.nth(i) {
+        id => {
+          if (id.length() == 0) {
+            ret!((false, "signers"))
+          } else {
+            if (seen.get(id) != Nil) {
+              ret!((false, "signers"))
+            } else {
+              new mCh in {
+                coMemberOk!(publicationUri, id, *mCh) |
+                for (@m <- mCh) {
+                  match m {
+                    (true, Nil) => {
+                      coSignersOk!(publicationUri, signers, i + 1, seen.set(id, true), *ret)
+                    }
+                    _ => { ret!((false, "signers")) }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coCreateArgs(@coordinationId, @data, ret) = {
+    if (coordinationId.length() == 0 || coordinationId.length() > 64) {
+      ret!((false, "coordination"))
+    } else {
+      match data.get("publicationId") {
+        Nil => { ret!((false, "publication")) }
+        publicationId => {
+          match data.get("publicationUri") {
+            Nil => { ret!((false, "publication")) }
+            publicationUri => {
+              if (publicationId.length() == 0 || publicationUri.length() == 0) {
+                ret!((false, "publication"))
+              } else {
+                match data.get("subjectRef") {
+                  Nil => { ret!((false, "subject")) }
+                  subjectRef => {
+                    new sCh in {
+                      coSubjectOk!(subjectRef, *sCh) |
+                      for (@s <- sCh) {
+                        match s {
+                          (true, Nil) => {
+                            match data.get("roomIdHash") {
+                              Nil => { ret!((false, "room")) }
+                              roomIdHash => {
+                                if (roomIdHash.length() == 0) {
+                                  ret!((false, "room"))
+                                } else {
+                                  match data.get("signerIds") {
+                                    Nil => { ret!((false, "signers")) }
+                                    signers => {
+                                      if (signers.length() < 1 || signers.length() > 16) {
+                                        ret!((false, "signers"))
+                                      } else {
+                                        ret!((true, publicationId, publicationUri,
+                                              subjectRef, roomIdHash, signers))
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret!(s) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract CoordinationFactory(@"create", dId, @opId, @coordinationId, @data, ret) = {
+    new oCh in {
+      authOwner!(*dId, *oCh) |
+      for (@o <- oCh) {
+        match o {
+          (true, creatorId) => {
+            new aCh in {
+              coCreateArgs!(coordinationId, data, *aCh) |
+              for (@a <- aCh) {
+                match a {
+                  (true, publicationId, publicationUri, subjectRef, roomIdHash, signers) => {
+                    for (@fs <- coordinationFactoryState) {
+                      match fs.get("ops").get(creatorId ++ ":" ++ opId) {
+                        Nil => {
+                          match fs.get("ids").get(coordinationId) {
+                            Nil => {
+                              coCreateGo!(fs, creatorId, opId, coordinationId,
+                                          publicationId, publicationUri, subjectRef,
+                                          roomIdHash, signers, *ret)
+                            }
+                            _ => {
+                              coordinationFactoryState!(fs) |
+                              ret!((false, "duplicate"))
+                            }
+                          }
+                        }
+                        stored => { coordinationFactoryState!(fs) | ret!(stored) }
+                      }
+                    }
+                  }
+                  _ => { ret!(a) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "not owner")) }
+        }
+      }
+    }
+  } |
+
+  contract coCreateGo(@fs, @creatorId, @opId, @coordinationId, @publicationId,
+                      @publicationUri, @subjectRef, @roomIdHash, @signers, ret) = {
+    new cCh in {
+      coCanonical!(publicationId, publicationUri, *cCh) |
+      for (@cc <- cCh) {
+        match cc {
+          (true, Nil) => {
+            new sCh in {
+              coSignersScan!(publicationUri, signers, *sCh) |
+              for (@sc <- sCh) {
+                match sc {
+                  (true, Nil) => {
+                    new rCh in {
+                      coRole!(publicationUri, creatorId, *rCh) |
+                      for (@rc <- rCh) {
+                        match rc {
+                          (true, "editor") => {
+                            coCreateStatus!(fs, creatorId, opId, coordinationId, publicationId,
+                                            publicationUri, subjectRef, roomIdHash, signers, *ret)
+                          }
+                          (true, "publisher") => {
+                            coCreateStatus!(fs, creatorId, opId, coordinationId, publicationId,
+                                            publicationUri, subjectRef, roomIdHash, signers, *ret)
+                          }
+                          _ => { coordinationFactoryState!(fs) | ret!((false, "role")) }
+                        }
+                      }
+                    }
+                  }
+                  _ => { coordinationFactoryState!(fs) | ret!(sc) }
+                }
+              }
+            }
+          }
+          _ => { coordinationFactoryState!(fs) | ret!(cc) }
+        }
+      }
+    }
+  } |
+
+  contract coCreateStatus(@fs, @creatorId, @opId, @coordinationId, @publicationId,
+                          @publicationUri, @subjectRef, @roomIdHash, @signers, ret) = {
+    new tCh in {
+      coStatus!(publicationUri, *tCh) |
+      for (@t <- tCh) {
+        match t {
+          (true, "active") => {
+            new nCh in {
+              coNowHeight!(*nCh) |
+              for (@n <- nCh) {
+                match n {
+                  (true, now) => {
+                    new fCh in {
+                      resolveComponent!("component:coordination-cell-factory", *fCh) |
+                      for (@fc <- fCh) {
+                        match fc {
+                          (true, CellFactory) => {
+                            new uCh in {
+                              @CellFactory!("spawn", {
+                                "coordinationId": coordinationId,
+                                "publicationId": publicationId,
+                                "publicationUri": publicationUri,
+                                "subjectRef": subjectRef,
+                                "roomIdHash": roomIdHash,
+                                "pollIdHash": "",
+                                "outcomeHash": "",
+                                "signers": signers,
+                                "signatures": [],
+                                "status": "open",
+                                "createdBy": creatorId,
+                                "createdAtHeight": now,
+                                "recordedAtHeight": 0,
+                                "ops": {},
+                                "schemaVersion": 1
+                              }, *uCh) |
+                              for (@u <- uCh) {
+                                match u {
+                                  (true, uri) => {
+                                    coordinationFactoryState!(
+                                      fs.set("ids", fs.get("ids").set(coordinationId, uri))
+                                        .set("ops", fs.get("ops").set(creatorId ++ ":" ++ opId, (true, uri)))) |
+                                    ret!((true, uri))
+                                  }
+                                  _ => {
+                                    coordinationFactoryState!(fs) | ret!(u)
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          _ => {
+                            coordinationFactoryState!(fs) |
+                            ret!((false, "cell factory"))
+                          }
+                        }
+                      }
+                    }
+                  }
+                  _ => { coordinationFactoryState!(fs) | ret!(n) }
+                }
+              }
+            }
+          }
+          (true, _) => { coordinationFactoryState!(fs) | ret!((false, "paused")) }
+          _ => { coordinationFactoryState!(fs) | ret!(t) }
+        }
+      }
+    }
+  } |
+
+  coordinationFactoryState!({"ids": {}, "ops": {}, "schemaVersion": 1}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*CoordinationFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:coordination-factory", uri, 1,
+            "coordination", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

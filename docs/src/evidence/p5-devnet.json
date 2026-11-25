@@ -1,0 +1,112 @@
+{
+  "schema": "rhobuilder.p5-evidence/v1",
+  "recordedAt": "2026-11-25T17:42:55Z",
+  "network": "devnet",
+  "networkId": "testnet",
+  "shardId": "/root",
+  "genesisBlockHash": "bb62bd80bd549ffa4e7393f9061fb204585928a426b4ec6d84eeaa1d5b98593b",
+  "nodeBuild": "5b9685eca38250a9f0d81fb3da2f410328721aec",
+  "baseline": {
+    "r-cash": {
+      "commit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+      "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y",
+      "status": "verified",
+      "steps": 15
+    },
+    "r-gen": {
+      "commit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+      "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy",
+      "status": "verified",
+      "steps": 7
+    },
+    "r-share": {
+      "commit": "7114acbabba31d3575c7c858c74f393755c91404",
+      "root": "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy",
+      "status": "verified",
+      "steps": 15
+    },
+    "r-sure": {
+      "commit": "0da5d0436e5f33eec3de20adb887ece4b1edcad3",
+      "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby",
+      "status": "verified",
+      "steps": 17
+    },
+    "r-print": {
+      "commit": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+      "root": "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by",
+      "status": "verified",
+      "steps": 15
+    }
+  },
+  "app": {
+    "slug": "bookable-service",
+    "root": "rho:id:57qdbsu5kte76u9txhsyikqm8rmjmqurzdnt5b53c5rx83kqsamy",
+    "status": "verified",
+    "steps": 8
+  },
+  "suites": {
+    "schema": "rhobuilder.suite-results/v1",
+    "suite": "bookable-service",
+    "generatedAt": "2026-11-25T17:42:43Z",
+    "results": [
+      {
+        "suite": "root",
+        "status": "pass",
+        "detail": "",
+        "seconds": 39.738
+      },
+      {
+        "suite": "payments",
+        "status": "pass",
+        "detail": "",
+        "seconds": 17.355
+      },
+      {
+        "suite": "booking",
+        "status": "pass",
+        "detail": "",
+        "seconds": 15.335
+      },
+      {
+        "suite": "cover",
+        "status": "pass",
+        "detail": "",
+        "seconds": 9.236
+      },
+      {
+        "suite": "dispute",
+        "status": "pass",
+        "detail": "",
+        "seconds": 53.211
+      },
+      {
+        "suite": "refusal",
+        "status": "pass",
+        "detail": "",
+        "seconds": 49.306
+      },
+      {
+        "suite": "idempotency",
+        "status": "pass",
+        "detail": "",
+        "seconds": 64.017
+      },
+      {
+        "suite": "conservation",
+        "status": "pass",
+        "detail": "",
+        "seconds": 45.428
+      },
+      {
+        "suite": "concurrency",
+        "status": "pass",
+        "detail": "",
+        "seconds": 37.619
+      }
+    ]
+  },
+  "notes": [
+    "r-cash core profile omits 51_pool/50_market; the pinned node rejects 51_pool with parse depth exceeded and no app requires it.",
+    "All roots were verified through a signed Root resolve; the second baseline run adopted all five with zero duplicate deploys."
+  ]
+}

@@ -1,0 +1,543 @@
+// v0.4 AccountFactory: one owner -> Account, PurseStore and AccountGate.
+// getOrCreate creates the account contracts with the vault proof in closure. The
+// proof is never returned or passed through a message; VaultBook.verify compares
+// it by name. Every account arm takes the caller's deployerId and checks it in
+// AccountGate, so a shared account capability still cannot act for the owner.
+// Placeholders: __ROOT_URI__, __ASSET_RESOLVER_URI__.
+new
+  AccountFactory, factoryState,
+  revAddress(`rho:rev:address`),
+  revVault(`rho:rchain:revVault`),
+  deployerIdOps(`rho:rchain:deployerId:ops`),
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, Root, uFactory, ack
+in {
+
+  contract AccountFactory(@"getOrCreate", @pubKeyBytes, ret) = {
+    new addrCh in {
+      revAddress!("fromPublicKey", pubKeyBytes, *addrCh) |
+      for (@ownerId <- addrCh) {
+        for (@s <<- factoryState) {
+          match s.get("accounts").get(ownerId) {
+            Nil => {
+              for (@s2 <- factoryState) {
+                match s2.get("accounts").get(ownerId) {
+                  Nil => {
+                    new proof, account, PurseStore, purseState, accountState, AccountGate,
+                        reserveSend, finishSend, dropReserve, sendCommit in {
+
+                      contract AccountGate(@"verify", dId, ret2) = {
+                        new pkCh, aCh in {
+                          deployerIdOps!("pubKeyBytes", *dId, *pkCh) |
+                          for (@pk <- pkCh) {
+                            revAddress!("fromPublicKey", pk, *aCh) |
+                            for (@addr <- aCh) {
+                              if (addr == ownerId) { ret2!((true, Nil)) }
+                              else { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract PurseStore(@"ensure", @assetId, ret2) = {
+                        for (@ps <<- purseState) {
+                          match ps.get("purses").get(assetId) {
+                            Nil => {
+                              new arCh, iCh, pCh in {
+                                rl!(`__ASSET_RESOLVER_URI__`, *arCh) |
+                                for (AssetResolver <- arCh) {
+                                  AssetResolver!("issuer", assetId, *iCh) |
+                                  for (@ir <- iCh) {
+                                    match ir {
+                                      (true, brand, issuer) => {
+                                        @issuer!("makeEmptyPurse", *pCh) |
+                                        for (@pr <- pCh) {
+                                          match pr {
+                                            (true, purse) => {
+                                              for (@ps2 <- purseState) {
+                                                match ps2.get("purses").get(assetId) {
+                                                  Nil => {
+                                                    purseState!(
+                                                      ps2.set("purses",
+                                                        ps2.get("purses").set(assetId,
+                                                          {"purse": purse, "brand": brand}))
+                                                        .set("rev", ps2.get("rev") + 1)) |
+                                                    ret2!((true, Nil))
+                                                  }
+                                                  _ => {
+                                                    purseState!(ps2) |
+                                                    ret2!((true, Nil))
+                                                  }
+                                                }
+                                              }
+                                            }
+                                            _ => { ret2!(pr) }
+                                          }
+                                        }
+                                      }
+                                      _ => { ret2!(ir) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            _ => { ret2!((true, Nil)) }
+                          }
+                        }
+                      } |
+
+                      contract PurseStore(@"deposit", @assetId, payment, ret2) = {
+                        new eCh in {
+                          PurseStore!("ensure", assetId, *eCh) |
+                          for (@e <- eCh) {
+                            match e {
+                              (true, Nil) => {
+                                for (@ps <<- purseState) {
+                                  match ps.get("purses").get(assetId) {
+                                    Nil => { ret2!((false, "no purse")) }
+                                    entry => {
+                                      match entry.get("purse") { p => {
+                                        @p!("deposit", *payment, *ret2)
+                                      } }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { ret2!(e) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract PurseStore(@"withdraw", @assetId, @amount, ret2) = {
+                        if (amount <= 0) { ret2!((false, "amount")) }
+                        else {
+                          new eCh in {
+                            PurseStore!("ensure", assetId, *eCh) |
+                            for (@e <- eCh) {
+                              match e {
+                                (true, Nil) => {
+                                  for (@ps <<- purseState) {
+                                    match ps.get("purses").get(assetId) {
+                                      Nil => { ret2!((false, "no purse")) }
+                                      entry => {
+                                        match entry.get("purse") { p => {
+                                          match entry.get("brand") { b => {
+                                            @p!("withdraw", (b, amount), *ret2)
+                                          } }
+                                        } }
+                                      }
+                                    }
+                                  }
+                                }
+                                _ => { ret2!(e) }
+                              }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract PurseStore(@"balance", @assetId, ret2) = {
+                        new eCh in {
+                          PurseStore!("ensure", assetId, *eCh) |
+                          for (@e <- eCh) {
+                            match e {
+                              (true, Nil) => {
+                                for (@ps <<- purseState) {
+                                  match ps.get("purses").get(assetId) {
+                                    Nil => { ret2!((false, "no purse")) }
+                                    entry => {
+                                      match entry.get("purse") { p => {
+                                        @p!("getCurrentAmount", *ret2)
+                                      } }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { ret2!(e) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract PurseStore(@"facet", @assetId, ret2) = {
+                        new eCh in {
+                          PurseStore!("ensure", assetId, *eCh) |
+                          for (@e <- eCh) {
+                            match e {
+                              (true, Nil) => {
+                                for (@ps <<- purseState) {
+                                  match ps.get("purses").get(assetId) {
+                                    Nil => { ret2!((false, "no purse")) }
+                                    entry => {
+                                      match entry.get("purse") { p => {
+                                        @p!("getDepositFacet", *ret2)
+                                      } }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { ret2!(e) }
+                            }
+                          }
+                        }
+                      } |
+
+                      purseState!({"purses": {}, "rev": 0}) |
+                      accountState!({"nextTransferId": 0, "ops": {}, "rev": 0}) |
+
+                      // Reserve an opId before any funds move: a completed entry is
+                      // replayed, a pending entry is refused, a new one is stored.
+                      contract reserveSend(@opId, ret2) = {
+                        for (@as <- accountState) {
+                          match as.get("ops").get(opId) {
+                            Nil => {
+                              match as.get("nextTransferId") { id => {
+                                new nextCh in {
+                                  match opId {
+                                    "" => {
+                                      nextCh!(as.set("nextTransferId", id + 1)
+                                        .set("rev", as.get("rev") + 1))
+                                    }
+                                    _ => {
+                                      nextCh!(as.set("nextTransferId", id + 1)
+                                        .set("ops", as.get("ops").set(opId, {"id": id}))
+                                        .set("rev", as.get("rev") + 1))
+                                    }
+                                  } |
+                                  for (@nxt <- nextCh) {
+                                    accountState!(nxt) | ret2!((true, id))
+                                  }
+                                }
+                              } }
+                            }
+                            entry => {
+                              match entry.get("uri") {
+                                Nil => {
+                                  accountState!(as) | ret2!((false, "pending", entry.get("id")))
+                                }
+                                uri => {
+                                  accountState!(as) | ret2!((true, entry.get("id"), uri))
+                                }
+                              }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract finishSend(@opId, @id, @uri, ret2) = {
+                        match opId {
+                          "" => { ret2!((true, id, uri)) }
+                          _ => {
+                            for (@as <- accountState) {
+                              accountState!(as.set("ops",
+                                as.get("ops").set(opId, {"id": id, "uri": uri}))
+                                .set("rev", as.get("rev") + 1)) |
+                              ret2!((true, id, uri))
+                            }
+                          }
+                        }
+                      } |
+
+                      contract dropReserve(@opId, ret2) = {
+                        match opId {
+                          "" => { ret2!((true, Nil)) }
+                          _ => {
+                            for (@as <- accountState) {
+                              accountState!(as.set("ops", as.get("ops").set(opId, Nil))
+                                .set("rev", as.get("rev") + 1)) |
+                              ret2!((true, Nil))
+                            }
+                          }
+                        }
+                      } |
+
+                      // On success, forward the optional native REV stipend from the
+                      // sender's deployer vault to the recipient's REV address (the
+                      // claimer needs native REV for phlo), then record the opId. A
+                      // failed native transfer fails the deploy, rolling back the
+                      // reservation and the book send.
+                      contract sendCommit(@opId, @id, @uri, @stipend, @recipientPub, ret2) = {
+                        if (stipend <= 0) {
+                          finishSend!(opId, id, uri, *ret2)
+                        } else {
+                          new addrCh, vCh in {
+                            revAddress!("fromPublicKey", recipientPub, *addrCh) |
+                            for (@addr <- addrCh) {
+                              revVault!("transfer", *deployerId, addr, stipend, *vCh) |
+                              for (_ <- vCh) {
+                                finishSend!(opId, id, uri, *ret2)
+                              }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"vaultOpen", dId, @vaultUri, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                new vc in {
+                                  rl!(vaultUri, *vc) |
+                                  for (VaultBook <- vc) {
+                                    VaultBook!("open", ownerId, *proof, *ret2)
+                                  }
+                                }
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"deposit", dId, @assetId, payment, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                PurseStore!("deposit", assetId, *payment, *ret2)
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"withdraw", dId, @assetId, @amount, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                PurseStore!("withdraw", assetId, amount, *ret2)
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"balance", dId, @assetId, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                PurseStore!("balance", assetId, *ret2)
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      // Deposit-only and deliberately public: a sender needs the
+                      // recipient's receive capability, and a facet cannot withdraw.
+                      contract account(@"depositFacet", @assetId, ret2) = {
+                        PurseStore!("facet", assetId, *ret2)
+                      } |
+
+                      // The transfer id is per owner: consume and re-post the counter
+                      // before any await, so a blocked branch cannot lose the cell.
+                      contract account(@"sendTransfer", dId, @assetId, recipientFacet,
+                                       @recipientPub, @amount, @secretHash, @expiry,
+                                       @memo, @opId, @stipend, ret2) = {
+                        new vCh, rsvCh, dropCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                reserveSend!(opId, *rsvCh) |
+                                for (@rs <- rsvCh) {
+                                  match rs {
+                                    (true, id) => {
+                                      new fCh, wCh in {
+                                        PurseStore!("facet", assetId, *fCh) |
+                                        for (@f <- fCh) {
+                                          match f {
+                                            (true, refundFacet) => {
+                                              PurseStore!("withdraw", assetId, amount, *wCh) |
+                                              for (@w <- wCh) {
+                                                match w {
+                                                  (true, payment) => {
+                                                    new rCh, bCh, resCh in {
+                                                      rl!(`__ROOT_URI__`, *rCh) |
+                                                      for (Root <- rCh) {
+                                                        Root!("resolve", "component:transfer-book", 1, *bCh) |
+                                                        for (@(true, bookUri, _) <- bCh) {
+                                                          new bc in {
+                                                            rl!(bookUri, *bc) |
+                                                            for (TransferBook <- bc) {
+                                                              TransferBook!("send", ownerId, id,
+                                                                *recipientFacet, refundFacet,
+                                                                assetId, amount, payment,
+                                                                secretHash, expiry, memo, opId,
+                                                                stipend, *resCh) |
+                                                              for (@res <- resCh) {
+                                                                match res {
+                                                                  (true, tid, uri) => {
+                                                                    sendCommit!(opId, tid, uri,
+                                                                      stipend, recipientPub, *ret2)
+                                                                  }
+                                                                  (false, why, pay) => {
+                                                                    dropReserve!(opId, *dropCh) |
+                                                                    for (@_ <- dropCh) {
+                                                                      ret2!((false, why, pay))
+                                                                    }
+                                                                  }
+                                                                  (false, why) => {
+                                                                    dropReserve!(opId, *dropCh) |
+                                                                    for (@_ <- dropCh) {
+                                                                      ret2!((false, why))
+                                                                    }
+                                                                  }
+                                                                  _ => { ret2!(1 / 0) }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                  (false, why) => {
+                                                    dropReserve!(opId, *dropCh) |
+                                                    for (@_ <- dropCh) { ret2!((false, why)) }
+                                                  }
+                                                  _ => { ret2!(1 / 0) }
+                                                }
+                                              }
+                                            }
+                                            (false, why) => {
+                                              dropReserve!(opId, *dropCh) |
+                                              for (@_ <- dropCh) { ret2!((false, why)) }
+                                            }
+                                            _ => { ret2!(1 / 0) }
+                                          }
+                                        }
+                                      }
+                                    }
+                                    (true, id, uri) => { ret2!((true, id, uri)) }
+                                    _ => { ret2!(rs) }
+                                  }
+                                }
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"claimTransfer", dId, @transferUri, @secret, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                new tc in {
+                                  rl!(transferUri, *tc) |
+                                  for (TransferContract <- tc) {
+                                    TransferContract!("claim", secret, *ret2)
+                                  }
+                                }
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"refundTransfer", dId, @transferUri, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                new tc in {
+                                  rl!(transferUri, *tc) |
+                                  for (TransferContract <- tc) {
+                                    TransferContract!("refund", *dId, *ret2)
+                                  }
+                                }
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      contract account(@"transfers", dId, ret2) = {
+                        new vCh in {
+                          AccountGate!("verify", *dId, *vCh) |
+                          for (@v <- vCh) {
+                            match v {
+                              (true, Nil) => {
+                                for (@as <<- accountState) {
+                                  ret2!((true, as.get("ops")))
+                                }
+                              }
+                              _ => { ret2!((false, "not owner")) }
+                            }
+                          }
+                        }
+                      } |
+
+                      factoryState!(s2.set("accounts",
+                        s2.get("accounts").set(ownerId, {
+                          "account": bundle+{*account},
+                          "proof": *proof
+                        }))) |
+                      ret!((true, bundle+{*account}, ownerId))
+                    }
+                  }
+                  entry => {
+                    factoryState!(s2) |
+                    ret!((true, entry.get("account"), ownerId))
+                  }
+                }
+              }
+            }
+            entry => {
+              ret!((true, entry.get("account"), ownerId))
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract AccountFactory(@"verify", @ownerId, proof, ret) = {
+    for (@s <<- factoryState) {
+      match s.get("accounts").get(ownerId) {
+        Nil => { ret!((true, false)) }
+        stored => { ret!((true, stored.get("proof") == *proof)) }
+      }
+    }
+  } |
+
+  contract AccountFactory(@"accountOf", @ownerId, ret) = {
+    for (@s <<- factoryState) {
+      match s.get("accounts").get(ownerId) {
+        Nil => { ret!((false, "no account")) }
+        entry => { ret!((true, entry.get("account"))) }
+      }
+    }
+  } |
+
+  factoryState!({"accounts": {}}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*AccountFactory}, *uFactory) |
+    for (@uri <- uFactory) {
+      Root!("register", "component:account-factory", uri, 1, "account", *deployerId, *ack) |
+      for (@r <- ack) { deployId!([uri]) }
+    }
+  }
+}

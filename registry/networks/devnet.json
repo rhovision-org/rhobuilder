@@ -2,9 +2,9 @@
   "schema": "rhobuilder.network/v1",
   "network": "devnet",
   "chain": "rholo",
-  "networkId": null,
+  "networkId": "testnet",
   "shardId": "/root",
-  "genesisBlockHash": null,
+  "genesisBlockHash": "bb62bd80bd549ffa4e7393f9061fb204585928a426b4ec6d84eeaa1d5b98593b",
   "endpoint": "http://localhost:40403",
   "status": "local",
   "deploy": "allowed",
@@ -13,5 +13,37 @@
     "price": 1,
     "limit": 1000000
   },
-  "roots": {}
+  "observed": {
+    "nodeBuild": "5b9685eca38250a9f0d81fb3da2f410328721aec",
+    "height": 15146,
+    "networkId": "testnet",
+    "genesisBlockHash": "bb62bd80bd549ffa4e7393f9061fb204585928a426b4ec6d84eeaa1d5b98593b"
+  },
+  "roots": {
+    "r-cash": {
+      "root": "rho:id:eyqrdkc8b7uwy3as4qior6oarymumbahw1moz7wk1r9wz8x9zh3y",
+      "status": "verified",
+      "verified": true
+    },
+    "r-gen": {
+      "root": "rho:id:t4gdfdzsiu9fnhktdg719sigcqpx95u58t14h1477ipmm4ow66qy",
+      "status": "verified",
+      "verified": true
+    },
+    "r-share": {
+      "root": "rho:id:tsy5frnwt6pa67semp1x96jycho5x1anhrs48ied7hqxkcn4tmuy",
+      "status": "verified",
+      "verified": true
+    },
+    "r-sure": {
+      "root": "rho:id:yxrwxqd1po1ido5e4om6w6ty7b5eh4p39hzenmag4io7jm7fsiby",
+      "status": "verified",
+      "verified": true
+    },
+    "r-print": {
+      "root": "rho:id:3qbdbwkck59z96y4sq3qr7now8sk4g1xafztuyhf1gjyogs6d6by",
+      "status": "verified",
+      "verified": true
+    }
+  }
 }

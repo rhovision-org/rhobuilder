@@ -1,0 +1,38 @@
+// __app_name__ r-share booking adapter.
+// Wires the app to r-share's listing and booking factories by Root key; it does not
+// reimplement listing allocation or booking state.
+new rl(`rho:registry:lookup`), rs(`rho:registry:insertArbitrary`),
+    deployId(`rho:rchain:deployId`), BookingAdapter, uriCh, resolveKey in {
+  contract resolveKey(@key, ret) = {
+    new rootCh, entryCh in {
+      rl!(`__RSHARE_ROOT_URI__`, *rootCh) |
+      for (Root <- rootCh) {
+        Root!("resolve", key, 1, *entryCh) |
+        for (@entry <- entryCh) { ret!(entry) }
+      }
+    }
+  } |
+
+  contract BookingAdapter(@"health", ret) = {
+    new bookingCh, listingCh in {
+      resolveKey!("component:booking-factory", *bookingCh) |
+      resolveKey!("component:listing-factory", *listingCh) |
+      for (@booking <- bookingCh; @listing <- listingCh) {
+        ret!((true, booking, listing))
+      }
+    }
+  } |
+
+  contract BookingAdapter(@"bookingFactory", ret) = {
+    resolveKey!("component:booking-factory", *ret)
+  } |
+
+  contract BookingAdapter(@"listingFactory", ret) = {
+    resolveKey!("component:listing-factory", *ret)
+  } |
+
+  rs!(bundle+{*BookingAdapter}, *uriCh) |
+  for (@adapterUri <- uriCh) {
+    deployId!([adapterUri])
+  }
+}

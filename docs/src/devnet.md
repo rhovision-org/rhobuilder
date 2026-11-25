@@ -1,41 +1,67 @@
-# Devnet smoke
+# Devnet end-to-end
 
-A generated app ships a deployment smoke, not a behavioural suite. It deploys
-`contracts/src/*.rho` through the devnet's own funded validator key with `rnode deploy
---private-key-path` inside the container, then asserts each deploy is
-`processedWithSuccess`.
+P5 is measured on the local `devnet-bootstrap`, not just scaffolded. The evidence is
+`docs/src/evidence/p5-devnet.json`.
 
-The key is never read, printed or copied to the host. This is a dev-only path: the devnet
-root owns the key.
+## What was run
+
+1. Recovered the node non-destructively: the admin resource-resume was refused, a
+   container restart cleared the in-memory latch, and the memory cap was raised to 12 GiB
+   against the existing volume. Height and data were preserved.
+2. Generated devnet ops keys under `.ops/devnet/` (mode 0600) and funded the deployer
+   once from the in-container validator.
+3. Installed the vendored, pinned graph in dependency order:
+   r-cash core, r-gen, r-share safe, r-sure, r-print.
+4. Verified every app root and its required Root keys through a signed read. A second run
+   adopted all five with zero duplicate deploys.
+5. Generated the `bookable-service` example, deployed its eight terms, and ran nine
+   behavioural suites.
+
+## Measured result
+
+| App | Commit | Steps | Root status |
+|---|---|---|---|
+| r-cash (core) | `49b441d` | 15 | verified |
+| r-gen | `bcc840c` | 7 | verified |
+| r-share (safe) | `7114acb` | 15 | verified |
+| r-sure | `0da5d04` | 17 | verified |
+| r-print (safe) | `a2d91b3` | 15 | verified |
+| bookable-service | local | 8 | verified |
+
+Suites: `root`, `payments`, `booking`, `cover`, `dispute`, `refusal`, `idempotency`,
+`conservation`, `concurrency` — all pass.
+
+The r-cash core profile omits `51_pool` and `50_market`. The pinned node rejects
+`51_pool` with `parse depth exceeded`; no app in the graph requires either component.
+
+## Commands
 
 ```sh
-RHOBUILDER_DEVNET=1 make unit-all
+# read-only plan and local install
+rhobuilder --json baseline plan --network devnet
+rhobuilder --json baseline keygen --network devnet --out .ops/devnet/keys.json
+rhobuilder --json baseline fund   --network devnet --keys .ops/devnet/keys.json --execute
+rhobuilder --json baseline run    --network devnet --keys .ops/devnet/keys.json --execute
+rhobuilder --json baseline verify --network devnet --deep --keys .ops/devnet/keys.json
+
+# app
+rhobuilder --json deploy plan    --project /tmp/rhobuilder-p5 --network devnet
+rhobuilder --json deploy execute --project /tmp/rhobuilder-p5 --network devnet \
+  --execute --keys .ops/devnet/keys.json
+make -C /tmp/rhobuilder-p5 unit-all
 ```
 
-Environment:
-
-| Variable | Default |
-|---|---|
-| `RHOBUILDER_NODE` | `http://localhost:40403` |
-| `RHOBUILDER_CONTAINER` | `devnet-bootstrap` |
-| `RHOBUILDER_SHARD` | `/root` |
-| `RHOBUILDER_KEY_PATH` | `/var/lib/rnode/validator.hex` |
-| `RHOBUILDER_DEPLOY_TIMEOUT_S` | `120` |
+The generated app harness reads `RHOBUILDER_DEVNET=1`, `RHOBUILDER_BIN`,
+`RHOBUILDER_KEYS`, `RHOBUILDER_NETWORK` and `RHOBUILDER_REGISTRY`.
 
 ## Not-run is a result
 
-`run_suites.py` checks `/api/v1/status` first. If the node is unreachable, or
-`degraded != "normal"`, it prints `not_run` and exits 2; it never reports a pass. The
-installer does the same. `deployments/suite-results.json` records `pass`/`fail`/`not_run`.
+`run_suites.py` checks node health first. An unreachable or `degraded != "normal"` node
+prints `not_run` and exits 2; it never reports a pass. `deployments/suite-results.json`
+records `pass`/`fail`/`not_run`.
 
-## Current status
+## Still owed
 
-On 2026-11-25 the local `devnet-bootstrap` was running but critically throttled
-(`degraded: critical`, proposals withheld under checkpoint resource pressure). The harness
-correctly reported `not_run`; the devnet was not reset, because that would discard its
-data. A fresh healthy devnet is required to execute the smoke.
-
-## What is still owed
-
-Refusal, idempotency, conservation and concurrency suites, and a real per-app model. The
-scaffold smoke only proves that the generated terms deploy.
+The full sibling suite set (all 33 r-share suites and the app-specific Lean model) is not
+re-run here. The app's per-app Lean obligations remain `owed`; `formal check --strict`
+fails on them by design.

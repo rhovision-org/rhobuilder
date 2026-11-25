@@ -1,0 +1,42 @@
+// __app_name__ r-cash payments adapter.
+// Resolves component:account-factory through the pinned r-cash root. The app never
+// deploys or shadows the account factory.
+new rl(`rho:registry:lookup`), rs(`rho:registry:insertArbitrary`),
+    deployId(`rho:rchain:deployId`), Payments, uriCh, resolveKey in {
+  contract resolveKey(@key, ret) = {
+    new rootCh, entryCh in {
+      rl!(`__RCASH_ROOT_URI__`, *rootCh) |
+      for (Root <- rootCh) {
+        Root!("resolve", key, 1, *entryCh) |
+        for (@entry <- entryCh) { ret!(entry) }
+      }
+    }
+  } |
+
+  contract Payments(@"health", ret) = {
+    resolveKey!("component:account-factory", *ret)
+  } |
+
+  contract Payments(@"ensureAccount", @publicHex, ret) = {
+    new entryCh, factoryCh in {
+      resolveKey!("component:account-factory", *entryCh) |
+      for (@(true, accountFactoryUri, _) <- entryCh) {
+        rl!(accountFactoryUri, *factoryCh) |
+        for (AccountFactory <- factoryCh) {
+          AccountFactory!("getOrCreate", publicHex.hexToBytes(), *ret)
+        }
+      }
+    }
+  } |
+
+  contract Payments(@"balance", @account, ret) = {
+    new deployerId(`rho:rchain:deployerId`) in {
+      @account!("balance", *deployerId, "REV", *ret)
+    }
+  } |
+
+  rs!(bundle+{*Payments}, *uriCh) |
+  for (@paymentUri <- uriCh) {
+    deployId!([paymentUri])
+  }
+}

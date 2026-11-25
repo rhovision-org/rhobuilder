@@ -1,0 +1,437 @@
+// CoordinationCellFactory + one CoordinationRecord instance per anchored outcome.
+// Provenance, not authority. Placeholders: __ROOT_URI__.
+new
+  CoordinationCellFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  rev(`rho:rev:address`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  coRole, coMemberOk, coNowHeight,
+  coHash, coSigShape, coSignerAddress, coVerifyEntry, coVerifyEntries, coRecordPre
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+
+  contract coRole(@publicationUri, @callerId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) { Publication!("roleOf", callerId, *ret) }
+    }
+  } |
+
+  contract coMemberOk(@publicationUri, @memberId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) {
+        new mCh in {
+          Publication!("member", memberId, *mCh) |
+          for (@m <- mCh) {
+            match m {
+              (true, member) => {
+                if (member.get("status") == "active") { ret!((true, Nil)) }
+                else { ret!((false, "not signer")) }
+              }
+              _ => { ret!((false, "not signer")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coNowHeight(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract coHash(@coordinationId, @pollIdHash, @outcomeHash, ret) = {
+    new cCh in {
+      resolveComponent!("component:codec", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Codec) => {
+            @Codec!("hash", "rprint:coord:v1",
+                    [coordinationId, pollIdHash, outcomeHash], *ret)
+          }
+          _ => { ret!((false, "codec")) }
+        }
+      }
+    }
+  } |
+
+  contract coSigShape(@sigs, @i, ret) = {
+    if (i >= sigs.length()) {
+      ret!((true, Nil))
+    } else {
+      match sigs.nth(i) {
+        e => {
+          match e.get("memberId") {
+            Nil => { ret!((false, "not signer")) }
+            m => {
+              match e.get("pubKey") {
+                Nil => { ret!((false, "not signer")) }
+                p => {
+                  match e.get("sig") {
+                    Nil => { ret!((false, "not signer")) }
+                    g => { coSigShape!(sigs, i + 1, *ret) }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coSignerAddress(@pubKey, ret) = {
+    new aCh in {
+      rev!("fromPublicKey", pubKey, *aCh) |
+      for (@addr <- aCh) { ret!(addr) }
+    }
+  } |
+
+  contract coVerifyEntry(@digest, @memberId, @pubKey, @sig, ret) = {
+    new aCh in {
+      coSignerAddress!(pubKey, *aCh) |
+      for (@addr <- aCh) {
+        if (addr == memberId) {
+          new vCh in {
+            resolveComponent!("component:verifier", *vCh) |
+            for (@vc <- vCh) {
+              match vc {
+                (true, Verifier) => {
+                  new sCh in {
+                    @Verifier!("sigOk", digest, sig, pubKey, *sCh) |
+                    for (@ok <- sCh) {
+                      match ok {
+                        (true, true) => { ret!((true, Nil)) }
+                        _ => { ret!((false, "signature")) }
+                      }
+                    }
+                  }
+                }
+                _ => { ret!((false, "verifier")) }
+              }
+            }
+          }
+        } else {
+          ret!((false, "not signer"))
+        }
+      }
+    }
+  } |
+
+  contract coVerifyEntries(@digest, @sigs, @i, ret) = {
+    if (i >= sigs.length()) {
+      ret!((true, Nil))
+    } else {
+      match sigs.nth(i) {
+        e => {
+          new eCh in {
+            coVerifyEntry!(digest, e.get("memberId"), e.get("pubKey"),
+                           e.get("sig"), *eCh) |
+            for (@v <- eCh) {
+              match v {
+                (true, Nil) => {
+                  coVerifyEntries!(digest, sigs, i + 1, *ret)
+                }
+                _ => { ret!(v) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract coRecordPre(@coordinationId, @pollIdHash, @outcomeHash, @sigs, ret) = {
+    if (pollIdHash.length() == 0) {
+      ret!((false, "poll"))
+    } else {
+      if (outcomeHash.length() == 0) {
+        ret!((false, "outcome"))
+      } else {
+        if (sigs.length() < 1 || sigs.length() > 16) {
+          ret!((false, "not signer"))
+        } else {
+          new shCh in {
+            coSigShape!(sigs, 0, *shCh) |
+            for (@sh <- shCh) {
+              match sh {
+                (true, Nil) => {
+                  new hCh in {
+                    coHash!(coordinationId, pollIdHash, outcomeHash, *hCh) |
+                    for (@h <- hCh) {
+                      match h {
+                        (true, digest) => {
+                          new eCh in {
+                            coVerifyEntries!(digest, sigs, 0, *eCh) |
+                            for (@ev <- eCh) {
+                              match ev {
+                                (true, Nil) => { ret!((true, digest)) }
+                                _ => { ret!(ev) }
+                              }
+                            }
+                          }
+                        }
+                        _ => { ret!(h) }
+                      }
+                    }
+                  }
+                }
+                _ => { ret!(sh) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract CoordinationCellFactory(@"spawn", @state, ret) = {
+    new CoordinationRecord, coordinationState,
+        coRecordCheck, coRecordReplay, coSignersCheck, coSigRecords,
+        uCh in {
+      coordinationState!(state) |
+
+      contract CoordinationRecord(@"info", ret2) = {
+        for (@st <<- coordinationState) { ret2!((true, st.delete("ops"))) }
+      } |
+      contract CoordinationRecord(@"status", ret2) = {
+        for (@st <<- coordinationState) { ret2!((true, st.get("status"))) }
+      } |
+      contract CoordinationRecord(@"record", dId2, @opId2, @coordinationId2,
+                                  @pollIdHash, @outcomeHash, @sigs, ret2) = {
+        new o2 in {
+          authOwner!(*dId2, *o2) |
+          for (@oc <- o2) {
+            match oc {
+              (true, callerId) => {
+                new pCh in {
+                  coRecordPre!(coordinationId2, pollIdHash, outcomeHash, sigs, *pCh) |
+                  for (@p <- pCh) {
+                    match p {
+                      (true, digest) => {
+                        for (@s <- coordinationState) {
+                          new rCh in {
+                            coRole!(s.get("publicationUri"), callerId, *rCh) |
+                            for (@r <- rCh) {
+                              match r {
+                                (true, "editor") => {
+                                  coRecordCheck!(s, callerId, opId2, coordinationId2,
+                                                 pollIdHash, outcomeHash, sigs, *ret2)
+                                }
+                                (true, "publisher") => {
+                                  coRecordCheck!(s, callerId, opId2, coordinationId2,
+                                                 pollIdHash, outcomeHash, sigs, *ret2)
+                                }
+                                _ => { coordinationState!(s) | ret2!((false, "role")) }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      _ => { ret2!(p) }
+                    }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract coSignersCheck(@publicationUri2, @signers2, @sigs2, @i, ret2) = {
+        if (i >= signers2.length()) {
+          ret2!((true, Nil))
+        } else {
+          match signers2.nth(i) {
+            id => {
+              match sigs2.nth(i) {
+                e => {
+                  if (e.get("memberId") != id) {
+                    ret2!((false, "not signer"))
+                  } else {
+                    new mCh in {
+                      coMemberOk!(publicationUri2, id, *mCh) |
+                      for (@m <- mCh) {
+                        match m {
+                          (true, Nil) => {
+                            coSignersCheck!(publicationUri2, signers2, sigs2, i + 1, *ret2)
+                          }
+                          _ => { ret2!((false, "not signer")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract coRecordCheck(@s, @callerId, @opId3, @coordinationId3,
+                             @pollIdHash3, @outcomeHash3, @sigs3, ret2) = {
+        if (s.get("coordinationId") != coordinationId3) {
+          coordinationState!(s) | ret2!((false, "coordination"))
+        } else {
+          if (sigs3.length() != s.get("signers").length()) {
+            coordinationState!(s) | ret2!((false, "not signer"))
+          } else {
+            new cCh in {
+              coSignersCheck!(s.get("publicationUri"), s.get("signers"), sigs3, 0, *cCh) |
+              for (@cc <- cCh) {
+                match cc {
+                  (true, Nil) => {
+                    coRecordReplay!(s, callerId, opId3, pollIdHash3, outcomeHash3, sigs3, *ret2)
+                  }
+                  _ => { coordinationState!(s) | ret2!(cc) }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      contract coRecordReplay(@s, @callerId, @opId3,
+                              @pollIdHash3, @outcomeHash3, @sigs3, ret2) = {
+        match s.get("ops").get(callerId ++ ":" ++ opId3) {
+          Nil => {
+            if (s.get("status") == "recorded") {
+              if (s.get("pollIdHash") == pollIdHash3 &&
+                  s.get("outcomeHash") == outcomeHash3) {
+                coordinationState!(
+                  s.set("ops", s.get("ops").set(callerId ++ ":" ++ opId3, (true, Nil)))) |
+                ret2!((true, Nil))
+              } else {
+                coordinationState!(s) | ret2!((false, "recorded"))
+              }
+            } else {
+              new nCh in {
+                coNowHeight!(*nCh) |
+                for (@n <- nCh) {
+                  match n {
+                    (true, now) => {
+                      new rCh in {
+                        coSigRecords!(sigs3, 0, now, [], *rCh) |
+                        for (@recs <- rCh) {
+                          coordinationState!(
+                            s.set("pollIdHash", pollIdHash3)
+                             .set("outcomeHash", outcomeHash3)
+                             .set("signatures", recs)
+                             .set("status", "recorded")
+                             .set("recordedAtHeight", now)
+                             .set("ops", s.get("ops").set(callerId ++ ":" ++ opId3, (true, Nil)))) |
+                          ret2!((true, Nil))
+                        }
+                      }
+                    }
+                    _ => { coordinationState!(s) | ret2!(n) }
+                  }
+                }
+              }
+            }
+          }
+          stored => { coordinationState!(s) | ret2!(stored) }
+        }
+      } |
+
+      contract coSigRecords(@sigs3, @i, @now, @acc, ret2) = {
+        if (i >= sigs3.length()) {
+          ret2!(acc)
+        } else {
+          match sigs3.nth(i) {
+            e => {
+              coSigRecords!(sigs3, i + 1, now,
+                acc ++ [{"by": e.get("memberId"),
+                         "sig": e.get("sig"),
+                         "atHeight": now}], *ret2)
+            }
+          }
+        }
+      } |
+
+      rs!(bundle+{*CoordinationRecord}, *uCh) |
+      for (@uri <- uCh) {
+        ret!((true, uri))
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*CoordinationCellFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:coordination-cell-factory", uri, 1,
+            "coordination", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

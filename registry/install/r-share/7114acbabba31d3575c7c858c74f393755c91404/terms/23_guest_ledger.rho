@@ -1,0 +1,736 @@
+// GuestLedgerFactory + GuestLedger. The ledger state cell is passed explicitly to the
+// flow helpers, so the helpers stay shallow and no capability is captured in a bundle.
+// Placeholders: __ROOT_URI__.
+new
+  GuestLedgerFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  GuestLedgerBook, GuestLedgerDrop, GuestLedgerFinish, GuestLedgerGate, GuestLedgerPay, GuestLedgerReserve, GuestLedgerSpawn, authIsOwner, authOwner, ledgerAdmin, ledgerBookingFactory, ledgerBookListing, ledgerAcquire, ledgerConfirm, ledgerHoldPay, ledgerHoldSettle, ledgerListingCheck, ledgerNow, ledgerOpenListing, ledgerPayments, ledgerProviderActive, ledgerRelease, ledgerResolve,
+  resolveComponent
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+  // ---- stateless resolution and scan helpers ------------------------------------------
+
+  contract ledgerResolve(@key, ret) = {
+    resolveComponent!(key, *ret)
+  } |
+  contract ledgerNow(ret) = {
+    new cCh in {
+      ledgerResolve!("component:clock", *cCh) |
+      for (@r <- cCh) {
+        match r { (true, Clock) => { @Clock!("now", *ret) } _ => { ret!(r) } }
+      }
+    }
+  } |
+  contract ledgerPayments(ret) = {
+    resolveComponent!("component:payments", *ret)
+  } |
+  contract ledgerBookingFactory(ret) = {
+    resolveComponent!("component:booking-factory", *ret)
+  } |
+  contract ledgerAdmin(ret) = {
+    resolveComponent!("component:admin", *ret)
+  } |
+  contract ledgerProviderActive(@providerUri, ret) = {
+    if (providerUri == Nil) {
+      ret!((true, true))
+    } else {
+      new cCh in {
+        rl!(providerUri, *cCh) |
+        for (ProviderContract <- cCh) {
+          ProviderContract!("isActive", *ret)
+        }
+      }
+    }
+  } |
+  contract GuestLedgerGate(ret) = {
+    new aCh, pCh in {
+      ledgerAdmin!(*aCh) |
+      for (@a <- aCh) {
+        match a {
+          (true, ShareAdmin) => {
+            @ShareAdmin!("isPaused", *pCh) |
+            for (@p <- pCh) {
+              match p {
+                (true, false) => { ret!((true, Nil)) }
+                _ => { ret!((false, "paused")) }
+              }
+            }
+          }
+          _ => { ret!((false, "paused")) }
+        }
+      }
+    }
+  } |
+  contract ledgerAcquire(@listingUri, @bookingId, @payerId, @unitSlots,
+                         @until, releaseToken, payment, ret) = {
+    new cCh in {
+      rl!(listingUri, *cCh) |
+      for (Listing <- cCh) {
+        Listing!("acquire", bookingId, payerId, unitSlots,
+                 until, *releaseToken, *payment, *ret)
+      }
+    }
+  } |
+
+  contract ledgerRelease(@listingUri, @unitSlots, releaseToken, ret) = {
+    new cCh in {
+      rl!(listingUri, *cCh) |
+      for (Listing <- cCh) {
+        Listing!("release", unitSlots, *releaseToken, *ret)
+      }
+    }
+  } |
+
+  contract ledgerConfirm(@listingUri, @bookingId, @unitSlots,
+                         releaseToken, ret) = {
+    new cCh in {
+      rl!(listingUri, *cCh) |
+      for (Listing <- cCh) {
+        Listing!("confirm", bookingId, unitSlots, *releaseToken, *ret)
+      }
+    }
+  } |
+
+  contract ledgerHoldPay(dId, @assetId, @amount, ret) = {
+    new pCh in {
+      ledgerPayments!(*pCh) |
+      for (@p <- pCh) {
+        match p {
+          (true, Payments) => {
+            @Payments!("withdrawPayment", *dId, assetId, amount, *ret)
+          }
+          _ => { ret!(p) }
+        }
+      }
+    }
+  } |
+
+  contract ledgerHoldSettle(@bookingId, @mode, releaseToken, ret) = {
+    new hdCh, spCh in {
+      ledgerResolve!("component:hold-deposit", *hdCh) |
+      for (@hd <- hdCh) {
+        match hd {
+          (true, HoldDeposit) => {
+            @HoldDeposit!("settle", bookingId, mode, *releaseToken, *spCh) |
+            for (@_ <- spCh) { ret!((true, Nil)) }
+          }
+          _ => { ret!((true, Nil)) }
+        }
+      }
+    }
+  } |
+
+  // ---- state helpers take the ledger cell explicitly ----------------------------------
+
+  contract GuestLedgerReserve(ledgerState, @opId, done) = {
+    for (@st <- ledgerState) {
+      match st.get("ops").get(opId) {
+        Nil => {
+          ledgerState!(st.set("ops", st.get("ops").set(opId, {"pending": true}))) |
+          done!((true, Nil))
+        }
+        entry => {
+          ledgerState!(st) |
+          if (entry.get("pending") == true) {
+            done!((false, "pending"))
+          } else {
+            done!((true, entry))
+          }
+        }
+      }
+    }
+  } |
+  contract GuestLedgerDrop(ledgerState, @opId) = {
+    for (@st <- ledgerState) {
+      ledgerState!(st.set("ops", st.get("ops").delete(opId)))
+    }
+  } |
+  contract GuestLedgerFinish(ledgerState, @opId, @result) = {
+    for (@st <- ledgerState) {
+      ledgerState!(st.set("ops", st.get("ops").set(opId, result)))
+    }
+  } |
+
+  contract ledgerListingCheck(@listing, @expectedTermsHash, ledgerState,
+                              @opId, ret2) = {
+    if (listing.get("status") != "active") {
+      GuestLedgerDrop!(*ledgerState, opId) |
+      ret2!((false, "listing inactive"))
+    } else {
+      if (expectedTermsHash != Nil
+          && expectedTermsHash != listing.get("termsHash")) {
+        GuestLedgerDrop!(*ledgerState, opId) |
+        ret2!((false, "terms"))
+      } else {
+        ret2!((true, Nil))
+      }
+    }
+  } |
+
+  contract ledgerOpenListing(ledgerState, dId, @guestId, @listingUri, @unitSlots,
+                             @opId, @expectedTermsHash, ret2) = {
+    new lcCh in {
+      rl!(listingUri, *lcCh) |
+      for (Listing <- lcCh) {
+        new liCh in {
+          Listing!("info", *liCh) |
+          for (@li <- liCh) {
+            match li {
+              (true, listing) => {
+                ledgerBookListing!(*ledgerState, *dId, guestId, listing,
+                                   listingUri, unitSlots, opId,
+                                   expectedTermsHash, *ret2)
+              }
+              _ => {
+                GuestLedgerDrop!(*ledgerState, opId) |
+                ret2!(li)
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract ledgerBookListing(ledgerState, dId, @guestId, @listing, @listingUri,
+                             @unitSlots, @opId, @expectedTermsHash, ret2) = {
+    new chkCh in {
+      ledgerListingCheck!(listing, expectedTermsHash, *ledgerState, opId, *chkCh) |
+      for (@chk <- chkCh) {
+        match chk {
+          (true, Nil) => {
+            GuestLedgerBook!(*ledgerState, *dId, guestId, listing, listingUri,
+                             unitSlots, opId, *ret2)
+          }
+          _ => { ret2!(chk) }
+        }
+      }
+    }
+  } |
+
+  contract GuestLedgerBook(ledgerState, dId, @guestId, @listing,
+                           @listingUri, @unitSlots, @opId, ret) = {
+    new pvCh in {
+      ledgerProviderActive!(listing.get("providerUri"), *pvCh) |
+      for (@pv <- pvCh) {
+        match pv {
+          (true, true) => {
+            new tCh in {
+              ledgerNow!(*tCh) |
+              for (@n <- tCh) {
+                match n {
+                  (true, now) => {
+                    new bIdCh, untilCh, releaseToken in {
+                      bIdCh!(guestId ++ ":" ++ opId) |
+                      untilCh!(now + listing.get("terms").get("holdBlocks")) |
+                      for (@bId <- bIdCh; @untilHeight <- untilCh) {
+                        new hpCh in {
+                          ledgerHoldPay!(*dId,
+                                         listing.get("terms").get("assetId"),
+                                         listing.get("terms").get("pricePerSlot"),
+                                         *hpCh) |
+                          for (@(true, payment) <- hpCh) {
+                                new acqCh in {
+                                  ledgerAcquire!(listingUri, bId, guestId,
+                                                 unitSlots, untilHeight,
+                                                 *releaseToken, payment,
+                                                 *acqCh) |
+                                  for (@acq <- acqCh) {
+                                    match acq {
+                                      (true, summary) => {
+                                        GuestLedgerPay!(
+                                          *ledgerState, *dId, guestId, listing,
+                                          listingUri, unitSlots, opId, bId,
+                                          untilHeight, summary.get("count"),
+                                          summary.get("rent"),
+                                          summary.get("checkIn"),
+                                          summary.get("checkOut"),
+                                          *releaseToken, *ret)
+                                      }
+                                      _ => {
+                                        new rfCh in {
+                                          new pCh in {
+                                            ledgerPayments!(*pCh) |
+                                            for (@p <- pCh) {
+                                              match p {
+                                                (true, Payments) => {
+                                                  @Payments!("refundPayment",
+                                                    guestId,
+                                                    listing.get("terms").get(
+                                                      "assetId"),
+                                                    payment, *rfCh)
+                                                }
+                                                _ => { rfCh!(p) }
+                                              }
+                                            }
+                                          } |
+                                          for (@_ <- rfCh) {
+                                            GuestLedgerDrop!(*ledgerState, opId) |
+                                            ret!(acq)
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                          }
+                        }
+                      }
+                    }
+                  }
+                  _ => {
+                    GuestLedgerDrop!(*ledgerState, opId) |
+                    ret!(n)
+                  }
+                }
+              }
+            }
+          }
+          (true, false) => {
+            GuestLedgerDrop!(*ledgerState, opId) |
+            ret!((false, "provider paused"))
+          }
+          _ => {
+            GuestLedgerDrop!(*ledgerState, opId) |
+            ret!(pv)
+          }
+        }
+      }
+    }
+  } |
+
+  contract GuestLedgerPay(ledgerState, dId, @guestId, @listing, @listingUri,
+                          @unitSlots, @opId, @bookingId, @untilHeight,
+                          @slotCount, @rent, @checkInHeight, @checkOutHeight,
+                          releaseToken, ret) = {
+    new bfCh in {
+      ledgerResolve!("component:bond-factory", *bfCh) |
+      for (@bf <- bfCh) {
+        match bf {
+          (true, BondFactory) => {
+            new settleToken, bondCh in {
+              @BondFactory!("createFromAccount", *dId,
+                            listing.get("terms").get("assetId"),
+                            rent + listing.get("terms").get("deposit"),
+                            *settleToken, *bondCh) |
+              for (@br <- bondCh) {
+                match br {
+                  (true, bondUri) => {
+                    GuestLedgerSpawn!(
+                      *ledgerState, *releaseToken, *dId, guestId, listing,
+                      listingUri, unitSlots, opId, bookingId, untilHeight,
+                      checkInHeight, checkOutHeight, slotCount, rent,
+                      bondUri, *settleToken, *ret)
+                  }
+                  _ => {
+                    new relCh in {
+                      ledgerRelease!(listingUri, unitSlots, *releaseToken, *relCh) |
+                      for (@_ <- relCh) {
+                        new hsCh in {
+                          ledgerHoldSettle!(bookingId, "release",
+                                            *releaseToken, *hsCh)
+                        } |
+                        GuestLedgerDrop!(*ledgerState, opId) |
+                        ret!(br)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          _ => {
+            new relCh in {
+              ledgerRelease!(listingUri, unitSlots, *releaseToken, *relCh) |
+              for (@_ <- relCh) {
+                new hsCh in {
+                  ledgerHoldSettle!(bookingId, "release", *releaseToken, *hsCh)
+                } |
+                GuestLedgerDrop!(*ledgerState, opId) |
+                ret!((false, "bond factory unavailable"))
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract GuestLedgerSpawn(ledgerState, releaseToken, dId,
+                            @guestId, @listing, @listingUri, @unitSlots,
+                            @opId, @bookingId, @untilHeight, @checkInHeight,
+                            @checkOutHeight, @slotCount, @rent, @bondUri,
+                            settleToken, ret) = {
+    new fCh in {
+      ledgerBookingFactory!(*fCh) |
+      for (@f <- fCh) {
+        match f {
+          (true, BookingFactory) => {
+            new cfCh in {
+              cfCh!((true, Nil)) |
+              for (@cf <- cfCh) {
+                match cf {
+                  (true, Nil) => {
+                    new statusCh in {
+                      if (listing.get("terms").get("instantBook") == true) {
+                        statusCh!("confirmed")
+                      } else {
+                        statusCh!("requested")
+                      } |
+                      for (@initialStatus <- statusCh) {
+                        new dCh in {
+                          dCh!({
+                            "status": initialStatus,
+                            "bookingId": bookingId,
+                        "guestId": guestId,
+                        "providerId": listing.get("providerId"),
+                        "listingId": listing.get("listingId"),
+                        "listingUri": listingUri,
+                        "termsHash": listing.get("termsHash"),
+                        "kind": listing.get("kind"),
+                        "unitSlots": unitSlots,
+                        "assetId": listing.get("terms").get("assetId"),
+                        "rent": rent,
+                        "deposit": listing.get("terms").get("deposit"),
+                        "feeBps": listing.get("terms").get("feeBps"),
+                        "holdUntilHeight": untilHeight,
+                        "checkInHeight": checkInHeight,
+                        "checkOutHeight": checkOutHeight,
+                        "cancellation": listing.get("terms"),
+                        "admins": listing.get("admins"),
+                        "threshold": listing.get("threshold"),
+                        "instantBook": listing.get("terms").get("instantBook"),
+                        "cover": {
+                          "policyUri": "", "policyId": "", "offerId": "",
+                          "cap": 0, "deductible": 0,
+                          "effectiveDeposit": listing.get("terms").get("deposit"),
+                          "termsDeposit": listing.get("terms").get("deposit"),
+                          "mode": "none", "status": "none",
+                          "claimId": "", "lossId": "", "depositPart": 0,
+                          "coverPart": 0, "coverExpiresAtHeight": 0
+                        }
+                      }) |
+                      for (@data <- dCh) {
+                        new cCh in {
+                          @BookingFactory!("create", *dId, data, *releaseToken,
+                                           bondUri, *settleToken, *cCh) |
+                          for (@r <- cCh) {
+                            match r {
+                              (true, bookingUri) => {
+                                if (listing.get("terms").get("instantBook") == true) {
+                                  new cfCh2, hsCh in {
+                                    ledgerConfirm!(listingUri, bookingId,
+                                      unitSlots, *releaseToken, *cfCh2) |
+                                    for (@cf2 <- cfCh2) {
+                                      match cf2 {
+                                        (true, Nil) => {
+                                          ledgerHoldSettle!(bookingId, "confirm",
+                                            *releaseToken, *hsCh) |
+                                          for (@_ <- hsCh) {
+                                            GuestLedgerFinish!(*ledgerState, opId,
+                                              {"pending": false, "ok": true,
+                                               "bookingId": bookingId,
+                                               "uri": bookingUri}) |
+                                            ret!((true, bookingId, bookingUri))
+                                          }
+                                        }
+                                        _ => { 1/0 }
+                                      }
+                                    }
+                                  }
+                                } else {
+                                  GuestLedgerFinish!(*ledgerState, opId,
+                                    {"pending": false, "ok": true,
+                                     "bookingId": bookingId,
+                                     "uri": bookingUri}) |
+                                  ret!((true, bookingId, bookingUri))
+                                }
+                              }
+                              _ => { 1/0 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                      }
+                    }
+                  }
+                  _ => { 1/0 }
+                }
+              }
+            }
+          }
+          _ => { 1/0 }
+        }
+      }
+    }
+  } |
+
+  // ---- factory and instance ----------------------------------------------------------
+
+  contract GuestLedgerFactory(@"create", dId, @guestId, ret) = {
+    new oCh in {
+      authIsOwner!(*dId, guestId, *oCh) |
+      for (@v <- oCh) {
+        match v {
+          (true, Nil) => {
+            new pCh in {
+              ledgerPayments!(*pCh) |
+              for (@p <- pCh) {
+                match p {
+                  (true, Payments) => {
+                    new aCh in {
+                      @Payments!("ensureAccount", *dId, *aCh) |
+                      for (@a <- aCh) {
+                        match a {
+                          (true, account, ownerId) => {
+                            if (ownerId != guestId) {
+                              ret!((false, "account"))
+                            } else {
+                              new GuestLedger, ledgerState, uCh in {
+                                ledgerState!({"guestId": guestId, "ops": {}}) |
+                                contract GuestLedger(@"ops", dId2, ret2) = {
+                                  new o2 in {
+                                    authIsOwner!(*dId2, guestId, *o2) |
+                                    for (@v2 <- o2) {
+                                      match v2 {
+                                        (true, Nil) => {
+                                          for (@st <<- ledgerState) {
+                                            ret2!((true, st.get("ops")))
+                                          }
+                                        }
+                                        _ => { ret2!(v2) }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract GuestLedger(@"book", dId2, @listingUri,
+                                                    @unitSlots, @opId,
+                                                    @expectedTermsHash, ret2) = {
+                                  new o2 in {
+                                    authIsOwner!(*dId2, guestId, *o2) |
+                                    for (@v2 <- o2) {
+                                      match v2 {
+                                        (true, Nil) => {
+                                          new gateCh in {
+                                            GuestLedgerGate!(*gateCh) |
+                                            for (@g <- gateCh) {
+                                              match g {
+                                                (true, Nil) => {
+                                                  new svCh in {
+                                                    GuestLedgerReserve!(*ledgerState,
+                                                                        opId, *svCh) |
+                                                    for (@reserved <- svCh) {
+                                                      match reserved {
+                                                        (false, reason) => {
+                                                          ret2!((false, reason))
+                                                        }
+                                                        (true, Nil) => {
+                                                          ledgerOpenListing!(
+                                                            *ledgerState, *dId2, guestId,
+                                                            listingUri, unitSlots, opId,
+                                                            expectedTermsHash, *ret2)
+                                                        }
+                                                        (true, entry) => {
+                                                          if (entry.get("ok") == true) {
+                                                            ret2!((true,
+                                                                   entry.get("bookingId"),
+                                                                   entry.get("uri")))
+                                                          } else {
+                                                            ret2!((false,
+                                                                   entry.get("reason")))
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                                _ => { ret2!((false, "paused")) }
+                                              }
+                                            }
+                                          }
+                                        }
+                                        _ => { ret2!(v2) }
+                                      }
+                                    }
+                                  }
+                                } |
+                                contract GuestLedger(@"bookWithCover", dId2,
+                                                    @listingUri, @unitSlots,
+                                                    @opId, @expectedTermsHash,
+                                                    @offerId, @policyId, ret2) = {
+                                  new o2 in {
+                                    authIsOwner!(*dId2, guestId, *o2) |
+                                    for (@v2 <- o2) {
+                                      match v2 {
+                                        (true, Nil) => {
+                                          new gateCh in {
+                                            GuestLedgerGate!(*gateCh) |
+                                            for (@g <- gateCh) {
+                                              match g {
+                                                (true, Nil) => {
+                                                  new svCh in {
+                                                    GuestLedgerReserve!(
+                                                      *ledgerState, opId, *svCh) |
+                                                    for (@reserved <- svCh) {
+                                                      match reserved {
+                                                        (false, reason) => {
+                                                          ret2!((false, reason))
+                                                        }
+                                                        (true, Nil) => {
+                                                          new fCh, resCh in {
+                                                            ledgerResolve!(
+                                                              "component:guest-ledger-cover",
+                                                              *fCh) |
+                                                            for (@f <- fCh) {
+                                                              match f {
+                                                                (true, Cover) => {
+                                                                  @Cover!("book",
+                                                                    *dId2, guestId,
+                                                                    listingUri,
+                                                                    unitSlots, opId,
+                                                                    expectedTermsHash,
+                                                                    offerId,
+                                                                    policyId,
+                                                                    *resCh) |
+                                                                  for (@cr <- resCh) {
+                                                                    match cr {
+                                                                      (true, bookingId,
+                                                                       bookingUri) => {
+                                                                        GuestLedgerFinish!(
+                                                                          *ledgerState,
+                                                                          opId,
+                                                                          {"pending": false,
+                                                                           "ok": true,
+                                                                           "bookingId": bookingId,
+                                                                           "uri": bookingUri}) |
+                                                                        ret2!(cr)
+                                                                      }
+                                                                      _ => {
+                                                                        GuestLedgerDrop!(
+                                                                          *ledgerState,
+                                                                          opId) |
+                                                                        ret2!(cr)
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                                _ => {
+                                                                  GuestLedgerDrop!(
+                                                                    *ledgerState,
+                                                                    opId) |
+                                                                  ret2!((false, "cover disabled"))
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                        (true, entry) => {
+                                                          if (entry.get("ok") == true) {
+                                                            ret2!((true,
+                                                                   entry.get("bookingId"),
+                                                                   entry.get("uri")))
+                                                          } else {
+                                                            ret2!((false,
+                                                                   entry.get("reason")))
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                                _ => { ret2!((false, "paused")) }
+                                              }
+                                            }
+                                          }
+                                        }
+                                        _ => { ret2!(v2) }
+                                      }
+                                    }
+                                  }
+                                } |
+                                rs!(bundle+{*GuestLedger}, *uCh) |
+                                for (@uri <- uCh) { ret!((true, uri)) }
+                              }
+                            }
+                          }
+                          _ => { ret!((false, "account")) }
+                        }
+                      }
+                    }
+                  }
+                  _ => { ret!((false, "payments unavailable")) }
+                }
+              }
+            }
+          }
+          _ => { ret!(v) }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*GuestLedgerFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:guest-ledger-factory", uri, 1,
+            "booking", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

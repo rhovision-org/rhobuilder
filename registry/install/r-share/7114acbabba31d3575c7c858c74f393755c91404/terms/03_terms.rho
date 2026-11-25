@@ -1,0 +1,271 @@
+// Terms: the single ordered field list, validation, canonical hash and projections.
+// Placeholders: __ROOT_URI__.
+new
+  Terms,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  termsCheckList, termsNumOk, termsResolve, termsSchedule,
+  resolveComponent
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+  contract termsResolve(@key, ret) = {
+    resolveComponent!(key, *ret)
+  } |
+
+  contract Terms(@"fields", ret) = {
+    ret!(["kind", "assetId", "pricePerSlot", "deposit", "minSlots", "maxSlots",
+          "instantBook", "contiguous", "holdBlocks", "depositReviewBlocks",
+          "disputeWindowBlocks", "noShowBlocks", "fullRefundBeforeBlocks",
+          "partialRefundBps", "partialRefundBeforeBlocks", "feeBps",
+          "maxLeadBlocks", "maxSlotBlocks", "maxUnits",
+          "eventTransferCutoffBlocks"])
+  } |
+
+  contract Terms(@"values", @kind, @terms, ret) = {
+    ret!([kind,
+          terms.get("assetId"), terms.get("pricePerSlot"), terms.get("deposit"),
+          terms.get("minSlots"), terms.get("maxSlots"),
+          terms.get("instantBook"), terms.get("contiguous"),
+          terms.get("holdBlocks"), terms.get("depositReviewBlocks"),
+          terms.get("disputeWindowBlocks"), terms.get("noShowBlocks"),
+          terms.get("fullRefundBeforeBlocks"), terms.get("partialRefundBps"),
+          terms.get("partialRefundBeforeBlocks"), terms.get("feeBps"),
+          terms.get("maxLeadBlocks"), terms.get("maxSlotBlocks"),
+          terms.get("maxUnits"), terms.get("eventTransferCutoffBlocks")])
+  } |
+
+  contract termsNumOk(@terms, @check, ret) = {
+    match check.get("key") {
+      key => {
+        match terms.get(key) {
+          Nil => { ret!((false, key)) }
+          v => {
+            if (v < check.get("min") || v > check.get("max")) {
+              ret!((false, key))
+            } else {
+              ret!((true, Nil))
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsCheckList(@checks, @i, @terms, ret) = {
+    if (i >= checks.length()) {
+      ret!((true, Nil))
+    } else {
+      new cCh in {
+        termsNumOk!(terms, checks.nth(i), *cCh) |
+        for (@r <- cCh) {
+          match r {
+            (true, Nil) => { termsCheckList!(checks, i + 1, terms, *ret) }
+            _ => { ret!(r) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"validate", @kind, @terms, ret) = {
+    if ((kind == "lodging" || kind == "event" || kind == "bike"
+         || kind == "car" || kind == "robot") == false) {
+      ret!((false, "kind"))
+    } else {
+      if (terms.get("assetId").length() == 0) {
+        ret!((false, "asset"))
+      } else {
+        if ((terms.get("instantBook") == true || terms.get("instantBook") == false) == false) {
+          ret!((false, "instant"))
+        } else {
+          if ((terms.get("contiguous") == true || terms.get("contiguous") == false) == false) {
+            ret!((false, "contiguous"))
+          } else {
+            new cCh in {
+              termsCheckList!([
+                {"key": "pricePerSlot", "min": 1, "max": 1000000000000},
+                {"key": "deposit", "min": 0, "max": 1000000000000},
+                {"key": "minSlots", "min": 1, "max": 14},
+                {"key": "maxSlots", "min": 1, "max": 14},
+                {"key": "maxUnits", "min": 1, "max": 8},
+                {"key": "feeBps", "min": 0, "max": 10000},
+                {"key": "partialRefundBps", "min": 0, "max": 10000},
+                {"key": "holdBlocks", "min": 1, "max": 1000},
+                {"key": "depositReviewBlocks", "min": 0, "max": 100000},
+                {"key": "disputeWindowBlocks", "min": 0, "max": 100000},
+                {"key": "noShowBlocks", "min": 0, "max": 100000},
+                {"key": "fullRefundBeforeBlocks", "min": 0, "max": 100000},
+                {"key": "partialRefundBeforeBlocks", "min": 0, "max": 100000},
+                {"key": "maxLeadBlocks", "min": 1, "max": 10000000},
+                {"key": "maxSlotBlocks", "min": 1, "max": 10000000},
+                {"key": "eventTransferCutoffBlocks", "min": 0, "max": 100000}
+              ], 0, terms, *cCh) |
+              for (@r <- cCh) {
+                match r {
+                  (true, Nil) => {
+                    if (terms.get("minSlots") > terms.get("maxSlots")) {
+                      ret!((false, "slots"))
+                    } else {
+                      if (terms.get("partialRefundBeforeBlocks")
+                          < terms.get("fullRefundBeforeBlocks")) {
+                        ret!((false, "refund window"))
+                      } else {
+                        ret!((true, Nil))
+                      }
+                    }
+                  }
+                  _ => { ret!(r) }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"hash", @kind, @terms, ret) = {
+    new vCh, cCh in {
+      Terms!("values", kind, terms, *vCh) |
+      for (@values <- vCh) {
+        termsResolve!("component:codec", *cCh) |
+        for (@r <- cCh) {
+          match r {
+            (true, Codec) => {
+              @Codec!("hash", "rshare:terms:v1", values, *ret)
+            }
+            _ => { ret!((false, "codec")) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"booking", @terms, ret) = {
+    ret!({
+      "assetId": terms.get("assetId"),
+      "pricePerSlot": terms.get("pricePerSlot"),
+      "deposit": terms.get("deposit"),
+      "feeBps": terms.get("feeBps"),
+      "minSlots": terms.get("minSlots"),
+      "maxSlots": terms.get("maxSlots"),
+      "maxUnits": terms.get("maxUnits"),
+      "instantBook": terms.get("instantBook"),
+      "contiguous": terms.get("contiguous"),
+      "holdBlocks": terms.get("holdBlocks"),
+      "maxLeadBlocks": terms.get("maxLeadBlocks"),
+      "maxSlotBlocks": terms.get("maxSlotBlocks")
+    })
+  } |
+
+  contract Terms(@"remedy", @terms, ret) = {
+    ret!({
+      "feeBps": terms.get("feeBps"),
+      "depositReviewBlocks": terms.get("depositReviewBlocks"),
+      "disputeWindowBlocks": terms.get("disputeWindowBlocks"),
+      "noShowBlocks": terms.get("noShowBlocks"),
+      "fullRefundBeforeBlocks": terms.get("fullRefundBeforeBlocks"),
+      "partialRefundBps": terms.get("partialRefundBps"),
+      "partialRefundBeforeBlocks": terms.get("partialRefundBeforeBlocks"),
+      "eventTransferCutoffBlocks": terms.get("eventTransferCutoffBlocks")
+    })
+  } |
+
+  contract termsSchedule(@slots, @i, @contiguous, @now, @maxLead, @maxSlot,
+                         @prevEnd, @seen, ret) = {
+    if (i >= slots.length()) {
+      ret!((true, Nil))
+    } else {
+      match slots.nth(i) {
+        s => {
+          match s.get("slotId") {
+            Nil => { ret!((false, "slot id")) }
+            slotId => {
+              match s.get("startHeight") {
+                Nil => { ret!((false, "slot start")) }
+                startHeight => {
+                  match s.get("endHeight") {
+                    Nil => { ret!((false, "slot end")) }
+                    endHeight => {
+                      if (slotId.toUtf8Bytes().length() == 0
+                          || slotId.toUtf8Bytes().length() > 64) {
+                        ret!((false, "slot id"))
+                      } else if (seen.get(slotId) != Nil) {
+                        ret!((false, "duplicate slot"))
+                      } else if (startHeight >= endHeight) {
+                        ret!((false, "slot order"))
+                      } else if (startHeight <= now) {
+                        ret!((false, "slot past"))
+                      } else if (startHeight > now + maxLead) {
+                        ret!((false, "slot lead"))
+                      } else if (endHeight - startHeight > maxSlot) {
+                        ret!((false, "slot duration"))
+                      } else if (contiguous == true && i > 0
+                                 && startHeight != prevEnd) {
+                        ret!((false, "slot gap"))
+                      } else {
+                        termsSchedule!(slots, i + 1, contiguous, now,
+                                       maxLead, maxSlot, endHeight,
+                                       seen.set(slotId, true), *ret)
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"scheduleOk", @kind, @slots, @now, @maxLeadBlocks,
+                 @maxSlotBlocks, @contiguous, ret) = {
+    if (slots.length() == 0 || slots.length() > 64) {
+      ret!((false, "slots"))
+    } else {
+      new oneCh in {
+        oneCh!({}) |
+        for (@empty <- oneCh) {
+          termsSchedule!(slots, 0, contiguous, now, maxLeadBlocks, maxSlotBlocks,
+                         now, empty, *ret)
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*Terms}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:terms", uri, 1, "terms", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "rhobuilder.install-index/v1",
+  "apps": {
+    "r-cash": "49b441dea4f5561992387ed670ab263fcd5dd164",
+    "r-gen": "bcc840c25e334048bef390823a21aaf7e209d15b",
+    "r-print": "a2d91b344ec5d5ece38fff579467c2cf57c82dae",
+    "r-share": "7114acbabba31d3575c7c858c74f393755c91404",
+    "r-sure": "0da5d0436e5f33eec3de20adb887ece4b1edcad3"
+  }
+}

@@ -1,0 +1,448 @@
+// Terms: stateless validation and canonical hashing for r-print records.
+// Placeholders: __ROOT_URI__.
+new
+  Terms,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  resolveComponent,
+  termsRoleOk, termsMembersOk, termsAdminsOk, termsArbitratorsOk,
+  termsSplitOk, termsMilestonesOk, termsMilestoneKindOk, termsAuthorsOk
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+
+  contract termsRoleOk(@role, ret) = {
+    if (role == "publisher" || role == "editor" || role == "writer"
+        || role == "factchecker" || role == "treasurer"
+        || role == "contributor") {
+      ret!((true, Nil))
+    } else {
+      ret!((false, "role"))
+    }
+  } |
+
+  contract Terms(@"role", @role, ret) = {
+    termsRoleOk!(role, *ret)
+  } |
+
+  contract Terms(@"admins", @admins, @threshold, ret) = {
+    termsAdminsOk!(admins, threshold, 0, {}, *ret)
+  } |
+
+  contract Terms(@"arbitrators", @arbitrators, @threshold, ret) = {
+    termsArbitratorsOk!(arbitrators, threshold, 0, {}, *ret)
+  } |
+
+  contract Terms(@"did", @did, ret) = {
+    if (did.length() == 0 || did.length() > 128) {
+      ret!((false, "did"))
+    } else {
+      if (did.slice(0, 4) == "did:" || did.slice(0, 10) == "byoid:rev:") {
+        ret!((true, Nil))
+      } else {
+        ret!((false, "did"))
+      }
+    }
+  } |
+
+  contract termsMembersOk(@members, @i, @seen, @publishers, ret) = {
+    if (i >= members.length()) {
+      if (publishers == 0) { ret!((false, "member")) }
+      else { ret!((true, Nil)) }
+    } else {
+      if (members.length() > 32) {
+        ret!((false, "members"))
+      } else {
+        match members.nth(i) {
+          m => {
+            match m.get("memberId") {
+              Nil => { ret!((false, "member")) }
+              memberId => {
+                if (memberId.length() == 0) {
+                  ret!((false, "member"))
+                } else {
+                  new kCh in {
+                    kCh!(memberId) |
+                    for (@k <- kCh) {
+                      if (seen.get(k) != Nil) {
+                        ret!((false, "duplicate member"))
+                      } else {
+                        new rCh in {
+                          termsRoleOk!(m.get("role"), *rCh) |
+                          for (@r <- rCh) {
+                            match r {
+                              (true, Nil) => {
+                                if (m.get("role") == "publisher") {
+                                  termsMembersOk!(members, i + 1, seen.set(k, true),
+                                                  publishers + 1, *ret)
+                                } else {
+                                  termsMembersOk!(members, i + 1, seen.set(k, true),
+                                                  publishers, *ret)
+                                }
+                              }
+                              _ => { ret!(r) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsAdminsOk(@admins, @threshold, @i, @seen, ret) = {
+    if (admins.length() < 1 || admins.length() > 5) {
+      ret!((false, "admins"))
+    } else {
+      if (threshold < 1 || threshold > admins.length()) {
+        ret!((false, "threshold"))
+      } else {
+        if (i >= admins.length()) {
+          ret!((true, Nil))
+        } else {
+          match admins.nth(i) {
+            a => {
+              new kCh in {
+                kCh!(a.bytesToHex()) |
+                for (@k <- kCh) {
+                  if (seen.get(k) != Nil) {
+                    ret!((false, "duplicate key"))
+                  } else {
+                    termsAdminsOk!(admins, threshold, i + 1, seen.set(k, true), *ret)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsArbitratorsOk(@arbitrators, @threshold, @i, @seen, ret) = {
+    match arbitrators {
+      Nil => { ret!((true, Nil)) }
+      list => {
+        if (list.length() == 0) {
+          ret!((true, Nil))
+        } else {
+          if (list.length() < 2 || list.length() > 5) {
+            ret!((false, "arbitrators"))
+          } else {
+            if (threshold < 2 || threshold > list.length()) {
+              ret!((false, "threshold"))
+            } else {
+              if (i >= list.length()) {
+                ret!((true, Nil))
+              } else {
+                match list.nth(i) {
+                  a => {
+                    new kCh in {
+                      kCh!(a.bytesToHex()) |
+                      for (@k <- kCh) {
+                        if (seen.get(k) != Nil) {
+                          ret!((false, "duplicate key"))
+                        } else {
+                          termsArbitratorsOk!(list, threshold, i + 1,
+                                              seen.set(k, true), *ret)
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsSplitOk(@split, @i, @sum, @seen, ret) = {
+    match split {
+      Nil => { ret!((true, Nil)) }
+      list => {
+        if (i >= list.length()) {
+          if (sum == 0 || sum == 10000) { ret!((true, Nil)) }
+          else { ret!((false, "split")) }
+        } else {
+          match list.nth(i) {
+            s => {
+              match s.get("memberId") {
+                Nil => { ret!((false, "split")) }
+                memberId => {
+                  if (memberId.length() == 0) {
+                    ret!((false, "split"))
+                  } else {
+                    if (s.get("bps") < 0 || s.get("bps") > 10000) {
+                      ret!((false, "split"))
+                    } else {
+                      new kCh in {
+                        kCh!(memberId) |
+                        for (@k <- kCh) {
+                          if (seen.get(k) != Nil) {
+                            ret!((false, "split"))
+                          } else {
+                            termsSplitOk!(list, i + 1, sum + s.get("bps"),
+                                          seen.set(k, true), *ret)
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"charter", @charter, @members, ret) = {
+    if (charter.get("nameHash").length() == 0
+        || charter.get("mastheadHash").length() == 0
+        || charter.get("treasuryAccountId").length() == 0) {
+      ret!((false, "charter"))
+    } else {
+      if (charter.get("assetId") != "REV") {
+        ret!((false, "asset"))
+      } else {
+        new aCh, arCh, sCh, mCh in {
+          termsAdminsOk!(charter.get("admins"), charter.get("threshold"),
+                         0, {}, *aCh) |
+          termsArbitratorsOk!(charter.get("arbitrators"),
+                              charter.get("arbitrationThreshold"), 0, {}, *arCh) |
+          termsSplitOk!(charter.get("revenueSplit"), 0, 0, {}, *sCh) |
+          termsMembersOk!(members, 0, {}, 0, *mCh) |
+          for (@a <- aCh; @ar <- arCh; @s <- sCh; @m <- mCh) {
+            match a {
+              (true, Nil) => {
+                match ar {
+                  (true, Nil) => {
+                    match s {
+                      (true, Nil) => {
+                        match m {
+                          (true, Nil) => { ret!((true, Nil)) }
+                          _ => { ret!(m) }
+                        }
+                      }
+                      _ => { ret!(s) }
+                    }
+                  }
+                  _ => { ret!(ar) }
+                }
+              }
+              _ => { ret!(a) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsMilestoneKindOk(@kind, ret) = {
+    if (kind == "stipend" || kind == "draft" || kind == "final"
+        || kind == "expense" || kind == "bonus") {
+      ret!((true, Nil))
+    } else {
+      ret!((false, "milestone"))
+    }
+  } |
+
+  contract termsMilestonesOk(@milestones, @i, @sum, @seen, ret) = {
+    if (milestones.length() < 1 || milestones.length() > 8) {
+      ret!((false, "milestone"))
+    } else {
+      if (i >= milestones.length()) {
+        ret!((true, sum))
+      } else {
+        match milestones.nth(i) {
+          m => {
+            match m.get("id") {
+              Nil => { ret!((false, "milestone")) }
+              id => {
+                if (id.length() == 0 || m.get("amount") <= 0
+                    || m.get("deadlineHeight") <= 0) {
+                  ret!((false, "milestone"))
+                } else {
+                  new kCh in {
+                    kCh!(id) |
+                    for (@k <- kCh) {
+                      if (seen.get(k) != Nil) {
+                        ret!((false, "milestone"))
+                      } else {
+                        new kindCh in {
+                          termsMilestoneKindOk!(m.get("kind"), *kindCh) |
+                          for (@kk <- kindCh) {
+                            match kk {
+                              (true, Nil) => {
+                                termsMilestonesOk!(milestones, i + 1,
+                                                    sum + m.get("amount"),
+                                                    seen.set(k, true), *ret)
+                              }
+                              _ => { ret!(kk) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"commission", @data, ret) = {
+    if (data.get("total") <= 0 || data.get("total") > 1000000000000) {
+      ret!((false, "total"))
+    } else {
+      new mCh in {
+        termsMilestonesOk!(data.get("milestones"), 0, 0, {}, *mCh) |
+        for (@m <- mCh) {
+          match m {
+            (true, sum) => {
+              if (sum != data.get("total")) { ret!((false, "total")) }
+              else { ret!((true, Nil)) }
+            }
+            _ => { ret!(m) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract termsAuthorsOk(@authors, @i, @seen, ret) = {
+    if (authors.length() < 1 || authors.length() > 16) {
+      ret!((false, "authors"))
+    } else {
+      if (i >= authors.length()) {
+        ret!((true, Nil))
+      } else {
+        match authors.nth(i) {
+          a => {
+            match a.get("memberId") {
+              Nil => { ret!((false, "author")) }
+              memberId => {
+                if (memberId.length() == 0) {
+                  ret!((false, "author"))
+                } else {
+                  new kCh in {
+                    kCh!(memberId) |
+                    for (@k <- kCh) {
+                      if (seen.get(k) != Nil) {
+                        ret!((false, "author"))
+                      } else {
+                        new dCh in {
+                          Terms!("did", a.get("did"), *dCh) |
+                          for (@d <- dCh) {
+                            match d {
+                              (true, Nil) => {
+                                termsAuthorsOk!(authors, i + 1, seen.set(k, true), *ret)
+                              }
+                              _ => { ret!(d) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract Terms(@"article", @data, ret) = {
+    if (data.get("contentHash").length() == 0) {
+      ret!((false, "content"))
+    } else {
+      if (data.get("license") == "all-rights" || data.get("license") == "cc-by-4.0"
+          || data.get("license") == "cc-by-sa-4.0" || data.get("license") == "cc0"
+          || data.get("license") == "custom") {
+        if (data.get("license") == "custom" && data.get("customLicenseHash").length() == 0) {
+          ret!((false, "license"))
+        } else {
+          if (data.get("access") == "open" || data.get("access") == "members"
+              || data.get("access") == "embargoed") {
+            new aCh in {
+              termsAuthorsOk!(data.get("authors"), 0, {}, *aCh) |
+              for (@a <- aCh) { ret!(a) }
+            }
+          } else {
+            ret!((false, "access"))
+          }
+        }
+      } else {
+        ret!((false, "license"))
+      }
+    }
+  } |
+
+  contract Terms(@"edition", @data, ret) = {
+    if (data.get("number") <= 0 || data.get("titleHash").length() == 0) {
+      ret!((false, "edition"))
+    } else {
+      ret!((true, Nil))
+    }
+  } |
+
+  contract Terms(@"hash", @schema, @items, ret) = {
+    new cCh in {
+      resolveComponent!("component:codec", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Codec) => { @Codec!("hash", schema, items, *ret) }
+          _ => { ret!((false, "codec")) }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*Terms}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:terms", uri, 1, "terms", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

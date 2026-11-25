@@ -35,12 +35,19 @@ spec/lean/VENDORED.json
 
 `VENDORED.json` records the source, version, source commit (or `working-tree`) and a
 deterministic SHA-256 over the vendored paths and bytes. The app's `make formal-check`
-runs `lake build` and `tools/check_vendored.py`; a tampered file fails.
+runs `lake build`, `tools/check_vendored.py` and `tools/check_obligations.py`; a tampered
+file or a forbidden Lean escape fails.
 
 ```sh
 rhobuilder --json formal check --project /path/to/app
+rhobuilder --json formal check --project /path/to/app --strict
 rhobuilder --json formal sync  --project /path/to/app --source /path/to/rhobuilder
 ```
+
+`check_obligations.py` reads `spec/flows/core.yaml`. Every component with mutating arms
+must declare `lean_status`; `owed` is accepted by default and rejected by `--strict`; a
+non-`owed` status must name a theorem. `sorry`, `admit`, `axiom` and `native_decide` are
+forbidden. This checks the model obligation, not a refinement of deployed Rholang.
 
 ## Status vocabulary
 

@@ -1,0 +1,9 @@
+{
+  "schema": "rhobuilder.install-manifest/v1",
+  "network": "testnet",
+  "networkId": "testnet-133b1d307b175012",
+  "shardId": "/testnet",
+  "status": "not_installed",
+  "apps": {},
+  "note": "No signed public-testnet baseline has been executed. r-cash candidate roots remain unverified; r-gen, r-share, r-sure and r-print have no testnet roots recorded."
+}

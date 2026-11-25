@@ -26,7 +26,7 @@ It registers six tools over `rhobuilder --json`:
 - `rhobuilder_scaffold` — plan (default) or apply.
 - `rhobuilder_check` — static/formal/full gates.
 - `rhobuilder_plan` — read-only deploy plan.
-- `rhobuilder_chain` — probe/status/explore/deploy-status.
+- `rhobuilder_chain` — probe/status/deploy-status.
 
 `plugin/bridge.js` is pure Node: argv, stdin/stdout JSON, timeout, abort and a typed error
 envelope. The plugin's `spawn` is trusted host code; the surface stays narrow and never

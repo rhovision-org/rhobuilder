@@ -66,11 +66,13 @@ function renderCheck(_args, value) {
 
 function renderPlan(_args, value) {
   try {
-    const deploys = Array.isArray(value?.deploys) ? value.deploys : []
-    const lines = [`deploy plan ${value?.network ?? '?'}: ${deploys.length} deploy(s)`]
-    for (const deploy of deploys) {
-      lines.push(`- ${deploy?.name ?? '?'}: ${deploy?.action ?? '?'}`)
+    const steps = value?.preview?.steps ?? value?.deploys ?? []
+    const list = Array.isArray(steps) ? steps : []
+    const lines = [`deploy plan ${value?.network ?? '?'}: ${list.length} step(s)`]
+    for (const step of list) {
+      lines.push(`- ${step?.name ?? '?'}: ${step?.status ?? step?.action ?? '?'}`)
     }
+    if (value?.planDigest) lines.push(`planDigest: ${value.planDigest}`)
     return content(lines.join('\n'))
   } catch {
     return renderJson(_args, value)
@@ -249,13 +251,12 @@ export function apply(ctx, config = {}) {
     tool({
       name: 'rhobuilder_chain',
       description:
-        'Read-only chain access: probe network identity/capabilities, read status, run an exploratory deploy, or read a deploy status. It never submits a signed deploy.',
+        'Read-only chain access: probe identity and capabilities, read the raw node status, or read a deploy status. It never submits a signed deploy.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['probe', 'status', 'explore', 'deploy-status'] },
+          action: { type: 'string', enum: ['probe', 'status', 'deploy-status'] },
           network: { type: 'string', enum: ['devnet', 'testnet', 'mainnet'] },
-          uri: { type: 'string', description: 'URI for action=explore' },
           deployId: { type: 'string', description: 'deploy id for action=deploy-status' },
         },
         required: ['action', 'network'],
@@ -263,9 +264,8 @@ export function apply(ctx, config = {}) {
       },
       timeoutMs: cfg.timeoutMs,
       execute: (args, exec) => {
-        requireAction(args, ['probe', 'status', 'explore', 'deploy-status'])
+        requireAction(args, ['probe', 'status', 'deploy-status'])
         requireString(args, 'network')
-        if (args.action === 'explore') requireString(args, 'uri')
         if (args.action === 'deploy-status') requireString(args, 'deployId')
         return runBridge('chain', args, cfg, exec)
       },

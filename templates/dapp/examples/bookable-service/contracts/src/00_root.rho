@@ -1,0 +1,61 @@
+// __app_name__ root. Deployed after the component terms so their URIs are known.
+// The root is a directory, not a second primitive registry: it holds only this app's
+// components and resolves them by key.
+new rs(`rho:registry:insertArbitrary`), deployId(`rho:rchain:deployId`) in {
+  new Root, state, uriCh in {
+    state!({
+      "entries": {
+        "component:dispute-factory": {
+          "uri": "__DISPUTE_URI__", "version": 1, "kind": "app"
+        },
+        "component:payments": {
+          "uri": "__PAYMENTS_URI__", "version": 1, "kind": "adapter"
+        },
+        "component:booking-adapter": {
+          "uri": "__BOOKING_ADAPTER_URI__", "version": 1, "kind": "adapter"
+        },
+        "component:cover-adapter": {
+          "uri": "__COVER_ADAPTER_URI__", "version": 1, "kind": "adapter"
+        }
+      }
+    }) |
+
+    contract Root(@"resolve", @key, @minVersion, ret) = {
+      for (@s <<- state) {
+        match s.get("entries").get(key) {
+          Nil => { ret!((false, "unknown component")) }
+          e => {
+            if (e.get("version") < minVersion) {
+              ret!((false, "stale"))
+            } else {
+              ret!((true, e.get("uri"), e.get("version")))
+            }
+          }
+        }
+      }
+    } |
+
+    contract Root(@"get", @key, ret) = {
+      for (@s <<- state) {
+        match s.get("entries").get(key) {
+          Nil => { ret!((false, "unknown component")) }
+          e => { ret!((true, e)) }
+        }
+      }
+    } |
+
+    contract Root(@"keys", ret) = {
+      for (@s <<- state) { ret!((true, s.get("entries").keys().toList())) }
+    } |
+
+    rs!(bundle+{*Root}, *uriCh) |
+    for (@rootUri <- uriCh) {
+      for (@s <- state) {
+        state!(s.set("entries",
+          s.get("entries").set("component:root",
+            {"uri": rootUri, "version": 1, "kind": "root"})))
+      } |
+      deployId!([rootUri])
+    }
+  }
+}

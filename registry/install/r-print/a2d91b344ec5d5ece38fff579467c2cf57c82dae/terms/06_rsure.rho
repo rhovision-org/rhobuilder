@@ -1,0 +1,137 @@
+// RsureAdapter: optional surface over r-sure policies and slips.
+// Escrow remains the r-print baseline; a commission may reference an r-sure Policy or Slip
+// when a publication wants cover that scales beyond dead-money escrow. Placeholders:
+// __ROOT_URI__, __RSURE_ROOT_URI__.
+new
+  RsureAdapter,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack
+in {
+  contract RsureAdapter(@"health", ret) = {
+    if ("__RSURE_ROOT_URI__".length() == 0) {
+      ret!((false, "disabled"))
+    } else {
+      new rCh, Root, sCh, dCh, pCh, lCh in {
+        rl!(`__RSURE_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:slip-factory", 1, *sCh) |
+          Root!("resolve", "component:distribution-factory", 1, *dCh) |
+          Root!("resolve", "component:policy-factory", 1, *pCh) |
+          Root!("resolve", "component:line-factory", 1, *lCh) |
+          for (@s <- sCh; @d <- dCh; @p <- pCh; @l <- lCh) {
+            match s {
+              (true, _, _) => {
+                match d {
+                  (true, _, _) => {
+                    match p {
+                      (true, _, _) => {
+                        match l {
+                          (true, _, _) => {
+                            ret!((true, {"slipFactory": true,
+                                         "distributionFactory": true,
+                                         "policyFactory": true,
+                                         "lineFactory": true}))
+                          }
+                          _ => { ret!((false, "line-factory")) }
+                        }
+                      }
+                      _ => { ret!((false, "policy-factory")) }
+                    }
+                  }
+                  _ => { ret!((false, "distribution-factory")) }
+                }
+              }
+              _ => { ret!((false, "slip-factory")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract RsureAdapter(@"policy", @uri, ret) = {
+    new cCh in {
+      rl!(uri, *cCh) |
+      for (Policy <- cCh) { Policy!("info", *ret) }
+    }
+  } |
+
+  contract RsureAdapter(@"slip", @uri, ret) = {
+    new cCh in {
+      rl!(uri, *cCh) |
+      for (Slip <- cCh) { Slip!("info", *ret) }
+    }
+  } |
+
+  // Factory membership: the policy's own id must be registered in the pinned
+  // r-sure policy book against the supplied policy URI.
+  contract RsureAdapter(@"membership", @policyUri, ret) = {
+    if ("__RSURE_ROOT_URI__".length() == 0) {
+      ret!((true, Nil))
+    } else {
+      new rCh, Root, bCh in {
+        rl!(`__RSURE_ROOT_URI__`, *rCh) |
+        for (Root <- rCh) {
+          Root!("resolve", "component:policy-book", 1, *bCh) |
+          for (@b <- bCh) {
+            match b {
+              (true, bookUri, _) => {
+                new bkCh in {
+                  rl!(bookUri, *bkCh) |
+                  for (PolicyBook <- bkCh) {
+                    new pCh in {
+                      rl!(policyUri, *pCh) |
+                      for (Policy <- pCh) {
+                        new iCh in {
+                          Policy!("info", *iCh) |
+                          for (@i <- iCh) {
+                            match i {
+                              (true, s) => {
+                                new lCh in {
+                                  PolicyBook!("policy", s.get("id"), *lCh) |
+                                  for (@l <- lCh) {
+                                    match l {
+                                      (true, registered) => {
+                                        if (registered.toString() != policyUri) {
+                                          ret!((false, "membership"))
+                                        } else { ret!((true, Nil)) }
+                                      }
+                                      _ => { ret!((false, "membership")) }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { ret!((false, "membership")) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              _ => { ret!((false, "membership")) }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*RsureAdapter}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:rsure-adapter", uri, 1, "rsure", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

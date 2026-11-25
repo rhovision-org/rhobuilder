@@ -1,7 +1,7 @@
 # Design workflow
 
-`/rhobuilder-build <idea or design.json>` runs this loop. The CLI equivalent is
-`rhobuilder build`, once P2 lands.
+`/rhobuilder-build <idea or design.json>` runs this loop. The CLI equivalent is the
+sequence `design check`, `new`, `deploy plan`, then `deploy execute` in the app directory.
 
 1. **Probe.** Resolve the network, compare networkId, shard, genesis block hash and node
    build with the registry, and confirm registry freshness. Public testnet uses
@@ -28,12 +28,17 @@
 
 ## Gates
 
+`rhobuilder check --project <dir> --profile ...` runs the project's Makefile targets; it
+does not hide a second gate implementation.
+
 | Profile | Contents |
 |---|---|
-| `static` | build, spec, graph, flows, docs (not parser) |
-| `parse` | node parser, only when `RHOLO_DIR`/`RCHAIN_RUST_DIR` is present |
-| `formal` | Lean build, axiom audit, vectors, flow manifest |
-| `full` | formal + devnet install + all behavioural suites |
+| `static` | `make check`: spec, graph, flows, docs |
+| `formal` | `make formal-check`: Lean, vendored hash, per-arm obligations |
+| `full` | static + formal + `make unit-all` (devnet harness; `not_run` when off) |
+
+`parse-check` remains a separate Makefile target because it needs the pinned node parser;
+`static` does not claim it ran.
 
 `proved-model` is a theorem about the shallow Lean model. It is not a refinement of the
 deployed Rholang, and no command may call it "verified".

@@ -1,0 +1,38 @@
+{
+  "schema": "rhobuilder.install-origin/v1",
+  "app": "r-gen",
+  "repo": "https://github.com/rhovision-org/r-gen",
+  "commit": "bcc840c25e334048bef390823a21aaf7e209d15b",
+  "sourceRoot": "contracts/build/deploy",
+  "license": "AGPL-3.0-only",
+  "terms": {
+    "00_root.rho": {
+      "path": "contracts/build/deploy/00_root.rho",
+      "sha256": "6f912df0d175c59fdce511b1ae0afc762f4c2b849a9354ae3cfd2c525d860301"
+    },
+    "10_identity.rho": {
+      "path": "contracts/build/deploy/10_identity.rho",
+      "sha256": "fc9f40aec6286126c20ffe50d3cb9f9ab088f634f6c98512836e2b9f2e56647a"
+    },
+    "11_credentials.rho": {
+      "path": "contracts/build/deploy/11_credentials.rho",
+      "sha256": "f38b3f5f1627fc5507e823a4c37b4544008f2681eac3cdef23e427eb8b8d9146"
+    },
+    "30_oracle.rho": {
+      "path": "contracts/build/deploy/30_oracle.rho",
+      "sha256": "80999439c0e15b7d0cc388d841c7e6bd587007bf4774e2a5ee3e11d9e34183bd"
+    },
+    "40_provenance.rho": {
+      "path": "contracts/build/deploy/40_provenance.rho",
+      "sha256": "2fbce82b09134dbaae54c48623e0f03308b8f1e23c88d5d7dc25614918dd9757"
+    },
+    "22_value.rho": {
+      "path": "contracts/build/deploy/22_value.rho",
+      "sha256": "969d07a3a9005b74e09cc9f268ede8163a76fa8b249e3a3f26201a9b4072c4d4"
+    },
+    "20_claim.rho": {
+      "path": "contracts/build/deploy/20_claim.rho",
+      "sha256": "90691c817c5a04d1bc47fed61c55afdb11da3f9e752bb956711ea4be696fffda"
+    }
+  }
+}

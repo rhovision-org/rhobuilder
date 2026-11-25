@@ -1,0 +1,201 @@
+// Stateless unit helpers for the per-listing allocator.
+// The allocator owns units and slots; this term only validates schedules and scans a
+// unit's slot map. It owns no state cell and registers no slot capability.
+// Placeholders: __ROOT_URI__.
+new
+  UnitFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  unitClock, unitSchedule, unitTerms, unitMin, unitMax, unitSlotScan,
+  unitSlotAdvance,
+  resolveComponent
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+
+  contract unitClock(ret) = {
+    new rCh, Root, uCh, cCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", "component:clock", 1, *uCh) |
+        for (@r <- uCh) {
+          match r {
+            (true, uri, _) => {
+              rl!(uri, *cCh) |
+              for (Clock <- cCh) { Clock!("now", *ret) }
+            }
+            _ => { ret!(r) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract unitTerms(ret) = {
+    resolveComponent!("component:terms", *ret)
+  } |
+
+  contract UnitFactory(@"validate", @kind, @slots, @maxLeadBlocks,
+                       @maxSlotBlocks, @contiguous, ret) = {
+    new pCh, nCh in {
+      unitTerms!(*pCh) |
+      unitClock!(*nCh) |
+      for (@p <- pCh; @n <- nCh) {
+        match p {
+          (true, Terms) => {
+            match n {
+              (true, now) => {
+                @Terms!("scheduleOk", kind, slots, now,
+                        maxLeadBlocks, maxSlotBlocks, contiguous, *ret)
+              }
+              _ => { ret!(n) }
+            }
+          }
+          _ => { ret!(p) }
+        }
+      }
+    }
+  } |
+
+  contract UnitFactory(@"schedule", @specs, ret) = {
+    unitSchedule!(specs, 0, {}, *ret)
+  } |
+
+  contract UnitFactory(@"slotScan", @ids, @specMap, @stateMap, @now,
+                       @maxLead, @maxSlot, ret) = {
+    unitSlotScan!(ids, 0, specMap, stateMap, now, maxLead, maxSlot,
+                  0, now + maxLead + 1, 0, *ret)
+  } |
+
+  contract unitSchedule(@specs, @i, @acc, ret) = {
+    if (i >= specs.length()) {
+      ret!(acc)
+    } else {
+      match specs.nth(i) {
+        spec => {
+          match spec.get("slotId") {
+            slotId => { unitSchedule!(specs, i + 1, acc.set(slotId, spec), *ret) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract unitMin(@a, @b, ret) = { if (a < b) { ret!(a) } else { ret!(b) } } |
+  contract unitMax(@a, @b, ret) = { if (a > b) { ret!(a) } else { ret!(b) } } |
+
+  contract unitSlotAdvance(@ids, @j, @specMap, @stateMap, @now, @maxLead,
+                           @maxSlot, @count, @minStart, @maxEnd,
+                           @startHeight, @endHeight, ret) = {
+    new mnCh, mxCh in {
+      unitMin!(minStart, startHeight, *mnCh) |
+      unitMax!(maxEnd, endHeight, *mxCh) |
+      for (@mn <- mnCh; @mx <- mxCh) {
+        unitSlotScan!(ids, j + 1, specMap, stateMap, now, maxLead, maxSlot,
+                      count + 1, mn, mx, *ret)
+      }
+    }
+  } |
+
+  contract unitSlotScan(@ids, @j, @specMap, @stateMap, @now,
+                        @maxLead, @maxSlot, @count, @minStart, @maxEnd, ret) = {
+    if (j >= ids.length()) {
+      ret!((true, {"count": count, "minStart": minStart, "maxEnd": maxEnd}))
+    } else {
+      match ids.nth(j) {
+        slotId => {
+          match specMap.get(slotId) {
+            Nil => { ret!((false, "unknown slot")) }
+            spec => {
+              match stateMap.get(slotId) {
+                Nil => { ret!((false, "unknown slot")) }
+                state => {
+                  match spec.get("startHeight") {
+                    Nil => { ret!((false, "schedule")) }
+                    startHeight => {
+                      match spec.get("endHeight") {
+                        Nil => { ret!((false, "schedule")) }
+                        endHeight => {
+                          if (startHeight >= endHeight) {
+                            ret!((false, "schedule"))
+                          } else if (startHeight <= now) {
+                            ret!((false, "schedule"))
+                          } else if (startHeight > now + maxLead) {
+                            ret!((false, "lead"))
+                          } else if (endHeight - startHeight > maxSlot) {
+                            ret!((false, "duration"))
+                          } else {
+                            match state {
+                              ["free", gen] => {
+                                unitSlotAdvance!(ids, j, specMap, stateMap,
+                                  now, maxLead, maxSlot, count, minStart,
+                                  maxEnd, startHeight, endHeight, *ret)
+                              }
+                              ["held", bId, until, token] => {
+                                if (now >= until) {
+                                  unitSlotAdvance!(ids, j, specMap, stateMap,
+                                    now, maxLead, maxSlot, count, minStart,
+                                    maxEnd, startHeight, endHeight, *ret)
+                                } else {
+                                  ret!((false, "slot held", slotId, until))
+                                }
+                              }
+                              ["held", bId, until] => {
+                                if (now >= until) {
+                                  unitSlotAdvance!(ids, j, specMap, stateMap,
+                                    now, maxLead, maxSlot, count, minStart,
+                                    maxEnd, startHeight, endHeight, *ret)
+                                } else {
+                                  ret!((false, "slot held", slotId, until))
+                                }
+                              }
+                              _ => { ret!((false, "slot held", slotId)) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*UnitFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:unit-factory", uri, 1, "unit", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

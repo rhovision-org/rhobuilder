@@ -1,0 +1,476 @@
+// EditionFactory + Edition: ordered article manifest sealed by an editor signature.
+// Placeholders: __ROOT_URI__.
+new
+  EditionFactory, editionFactoryState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  edCanonical, edRole, edNowHeight, edManifestItems, edSealCheck, edCreateGo
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+
+  contract edCanonical(@publicationId, @publicationUri, ret) = {
+    new cCh in {
+      resolveComponent!("component:publication-factory", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Factory) => {
+            new iCh in {
+              @Factory!("issued", publicationId, *iCh) |
+              for (@i <- iCh) {
+                match i {
+                  (true, canonical) => {
+                    if (canonical.toString() == publicationUri) { ret!((true, Nil)) }
+                    else { ret!((false, "publication")) }
+                  }
+                  _ => { ret!((false, "publication")) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "publication")) }
+        }
+      }
+    }
+  } |
+
+  contract edRole(@publicationUri, @callerId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) { Publication!("roleOf", callerId, *ret) }
+    }
+  } |
+
+  contract edNowHeight(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract edManifestItems(@articles, @i, @acc, ret) = {
+    if (i >= articles.length()) {
+      ret!(acc)
+    } else {
+      match articles.nth(i) {
+        a => {
+          edManifestItems!(articles, i + 1, acc ++ [a.get("contentHash")], *ret)
+        }
+      }
+    }
+  } |
+
+  contract EditionFactory(@"create", dId, @opId, @editionId, @data, ret) = {
+    new oCh in {
+      authOwner!(*dId, *oCh) |
+      for (@o <- oCh) {
+        match o {
+          (true, creatorId) => {
+            match data.get("publicationId") {
+              Nil => { ret!((false, "publication")) }
+              publicationId => {
+                match data.get("publicationUri") {
+                  Nil => { ret!((false, "publication")) }
+                  publicationUri => {
+                    new cCh in {
+                      resolveComponent!("component:terms", *cCh) |
+                      for (@c <- cCh) {
+                        match c {
+                          (true, Terms) => {
+                            new vCh in {
+                              @Terms!("edition", data, *vCh) |
+                              for (@v <- vCh) {
+                                match v {
+                                  (true, Nil) => {
+                                    new pCh in {
+                                      edCanonical!(publicationId, publicationUri, *pCh) |
+                                      for (@p <- pCh) {
+                                        match p {
+                                          (true, Nil) => {
+                                            new rCh in {
+                                              edRole!(publicationUri, creatorId, *rCh) |
+                                              for (@r <- rCh) {
+                                                match r {
+                                                  (true, "editor") => { edCreateGo!(creatorId, opId, editionId, data, *ret) }
+                                                  (true, "publisher") => { edCreateGo!(creatorId, opId, editionId, data, *ret) }
+                                                  _ => { ret!((false, "role")) }
+                                                }
+                                              }
+                                            }
+                                          }
+                                          _ => { ret!(p) }
+                                        }
+                                      }
+                                    }
+                                  }
+                                  _ => { ret!(v) }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret!((false, "terms")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "not owner")) }
+        }
+      }
+    }
+  } |
+
+  contract edCreateGo(@creatorId, @opId, @editionId, @data, ret) = {
+    new nCh in {
+      edNowHeight!(*nCh) |
+      for (@n <- nCh) {
+        match n {
+          (true, now) => {
+            new Edition, editionState, editionHasArticle, edAppendGo, edSealAttach, uCh in {
+              editionState!({
+                "editionId": editionId,
+                "publicationId": data.get("publicationId"),
+                "publicationUri": data.get("publicationUri"),
+                "number": data.get("number"),
+                "titleHash": data.get("titleHash"),
+                "coverHash": data.get("coverHash"),
+                "articles": [],
+                "status": "draft",
+                "seal": {"manifestHash": "", "editorId": "", "editorSig": "", "sealedAtHeight": 0},
+                "createdAtHeight": now,
+                "ops": {},
+                "schemaVersion": 1
+              }) |
+
+              contract Edition(@"info", ret2) = {
+                for (@s <<- editionState) { ret2!((true, s.delete("ops"))) }
+              } |
+              contract Edition(@"status", ret2) = {
+                for (@s <<- editionState) { ret2!((true, s.get("status"))) }
+              } |
+              contract Edition(@"manifest", ret2) = {
+                for (@s <<- editionState) { ret2!((true, s.get("articles"))) }
+              } |
+
+              contract Edition(@"append", dId2, @opId2, @articleUri, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, callerId) => {
+                        for (@s <- editionState) {
+                          match s.get("ops").get(callerId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "draft") {
+                                editionState!(s) | ret2!((false, "status"))
+                              } else {
+                                if (s.get("articles").length() >= 64) {
+                                  editionState!(s) | ret2!((false, "edition full"))
+                                } else {
+                                  new rCh in {
+                                    edRole!(s.get("publicationUri"), callerId, *rCh) |
+                                    for (@r <- rCh) {
+                                      match r {
+                                        (true, "editor") => { edAppendGo!(s, callerId, opId2, articleUri, *ret2) }
+                                        (true, "publisher") => { edAppendGo!(s, callerId, opId2, articleUri, *ret2) }
+                                        _ => { editionState!(s) | ret2!((false, "role")) }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            stored => { editionState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              contract edAppendGo(@s, @callerId, @opId, @articleUri, ret2) = {
+                new aCh in {
+                  rl!(articleUri, *aCh) |
+                  for (Article <- aCh) {
+                    new iCh in {
+                      Article!("info", *iCh) |
+                      for (@a <- iCh) {
+                        match a {
+                          (true, article) => {
+                            if (article.get("status") != "published") {
+                              editionState!(s) | ret2!((false, "article"))
+                            } else {
+                              if (article.get("publicationId") != s.get("publicationId")) {
+                                editionState!(s) | ret2!((false, "publication"))
+                              } else {
+                                new dCh in {
+                                  editionHasArticle!(s.get("articles"), article.get("articleId"), 0, *dCh) |
+                                  for (@d <- dCh) {
+                                    if (d) {
+                                      editionState!(s) | ret2!((false, "duplicate"))
+                                    } else {
+                                      editionState!(
+                                        s.set("articles", s.get("articles") ++
+                                          [{"articleId": article.get("articleId"),
+                                            "articleUri": articleUri,
+                                            "contentHash": article.get("contentHash"),
+                                            "kassetUri": article.get("kassetUri")}])
+                                         .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                      ret2!((true, Nil))
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          _ => { editionState!(s) | ret2!(a) }
+                        }
+                      }
+                    }
+                  }
+                }
+              } |
+
+              contract editionHasArticle(@articles, @articleId, @i, ret2) = {
+                if (i >= articles.length()) {
+                  ret2!(false)
+                } else {
+                  match articles.nth(i) {
+                    a => {
+                      if (a.get("articleId") == articleId) { ret2!(true) }
+                      else { editionHasArticle!(articles, articleId, i + 1, *ret2) }
+                    }
+                  }
+                }
+              } |
+
+              contract Edition(@"seal", dId2, @opId2, @editorSig, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, callerId) => {
+                        for (@s <- editionState) {
+                          match s.get("ops").get(callerId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "draft") {
+                                editionState!(s) | ret2!((false, "status"))
+                              } else {
+                                if (s.get("articles").length() == 0) {
+                                  editionState!(s) | ret2!((false, "edition"))
+                                } else {
+                                  new rCh in {
+                                    edRole!(s.get("publicationUri"), callerId, *rCh) |
+                                    for (@r <- rCh) {
+                                      match r {
+                                        (true, "editor") => { edSealAttach!(s, *dId2, callerId, opId2, editorSig, *ret2) }
+                                        (true, "publisher") => { edSealAttach!(s, *dId2, callerId, opId2, editorSig, *ret2) }
+                                        _ => { editionState!(s) | ret2!((false, "role")) }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            stored => { editionState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              contract edSealAttach(@s, dId, @callerId, @opId, @editorSig, ret2) = {
+                new cCh in {
+                  edSealCheck!(s, *dId, callerId, opId, editorSig, *cCh) |
+                  for (@c <- cCh) {
+                    match c {
+                      (true, digest, now) => {
+                        editionState!(
+                          s.set("status", "sealed")
+                           .set("seal", {"manifestHash": digest,
+                                         "editorId": callerId,
+                                         "editorSig": editorSig,
+                                         "sealedAtHeight": now})
+                           .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                        ret2!((true, Nil))
+                      }
+                      _ => { editionState!(s) | ret2!(c) }
+                    }
+                  }
+                }
+              } |
+
+              contract edSealCheck(@s, dId, @callerId, @opId, @editorSig, ret2) = {
+                new mCh in {
+                  edManifestItems!(s.get("articles"), 0,
+                    [s.get("editionId"), s.get("publicationId"), s.get("number"),
+                     s.get("titleHash"), s.get("coverHash")], *mCh) |
+                  for (@items <- mCh) {
+                    new cCh in {
+                      resolveComponent!("component:codec", *cCh) |
+                      for (@c <- cCh) {
+                        match c {
+                          (true, Codec) => {
+                            new hCh in {
+                              @Codec!("hash", "rprint:edition:v1", items, *hCh) |
+                              for (@h <- hCh) {
+                                match h {
+                                  (true, digest) => {
+                                    new pCh in {
+                                      authPubKey!(*dId, *pCh) |
+                                      for (@pk <- pCh) {
+                                        new vCh in {
+                                          resolveComponent!("component:verifier", *vCh) |
+                                          for (@v <- vCh) {
+                                            match v {
+                                              (true, Verifier) => {
+                                                new sCh in {
+                                                  @Verifier!("sigOk", digest, editorSig, pk, *sCh) |
+                                                  for (@ok <- sCh) {
+                                                    match ok {
+                                                      (true, true) => {
+                                                        new nCh in {
+                                                          edNowHeight!(*nCh) |
+                                                          for (@n <- nCh) {
+                                                            match n {
+                                                              (true, now) => {
+                                                                ret2!((true, digest, now))
+                                                              }
+                                                              _ => { ret2!(n) }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                      _ => { ret2!((false, "signature")) }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                              _ => { ret2!((false, "verifier")) }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                  _ => { ret2!(h) }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret2!((false, "codec")) }
+                        }
+                      }
+                    }
+                  }
+                }
+              } |
+
+              rs!(bundle+{*Edition}, *uCh) |
+              for (@uri <- uCh) {
+                for (@fs <- editionFactoryState) {
+                  editionFactoryState!(
+                    fs.set("ids", fs.get("ids").set(editionId, uri))
+                      .set("ops", fs.get("ops").set(creatorId ++ ":" ++ opId, (true, uri)))) |
+                  ret!((true, uri))
+                }
+              }
+            }
+          }
+          _ => { ret!(n) }
+        }
+      }
+    }
+  } |
+
+  contract EditionFactory(@"issued", @editionId, ret) = {
+    for (@fs <<- editionFactoryState) {
+      match fs.get("ids").get(editionId) {
+        Nil => { ret!((false, "unknown")) }
+        uri => { ret!((true, uri)) }
+      }
+    }
+  } |
+
+  editionFactoryState!({"ids": {}, "ops": {}, "schemaVersion": 1}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*EditionFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:edition-factory", uri, 1, "edition", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

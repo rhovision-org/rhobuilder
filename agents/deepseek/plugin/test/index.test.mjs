@@ -62,7 +62,7 @@ test('the design and chain tools require their payloads', async () => {
   )
   await assert.rejects(
     tools.get('rhobuilder_chain').execute({ action: 'explore', network: 'testnet' }, {}),
-    /`uri` must be a non-empty string/,
+    /must be one of/,
   )
   await assert.rejects(
     tools.get('rhobuilder_chain').execute({ action: 'deploy-status', network: 'testnet' }, {}),
@@ -86,7 +86,7 @@ test('the plan renderer names the network and deploy actions', () => {
     },
   )
   const text = blocks.map((block) => block.text).join('\n')
-  assert.match(text, /deploy plan testnet: 2 deploy\(s\)/)
+  assert.match(text, /deploy plan testnet: 2 step\(s\)/)
   assert.match(text, /r-cash: reuse/)
   assert.match(text, /panel-selection: deploy/)
 })

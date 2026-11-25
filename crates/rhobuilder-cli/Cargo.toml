@@ -13,9 +13,13 @@ path = "src/main.rs"
 [dependencies]
 rhobuilder-core.workspace = true
 rhobuilder-chain.workspace = true
+rhobuilder-gates.workspace = true
 rhobuilder-registry.workspace = true
 clap.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+reqwest.workspace = true
+rcash-sdk.workspace = true
 tokio.workspace = true
 
 [lints]

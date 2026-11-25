@@ -1,0 +1,567 @@
+// CommissionFactory + CommissionProposal: editorial acceptance before money moves.
+// Placeholders: __ROOT_URI__.
+new
+  CommissionFactory, commissionFactoryState,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  commCanonical, commRole, commCharter, commNowHeight, commActive, pubProposalGo
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+
+  contract commCanonical(@publicationId, @publicationUri, ret) = {
+    new cCh in {
+      resolveComponent!("component:publication-factory", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Factory) => {
+            new iCh in {
+              @Factory!("issued", publicationId, *iCh) |
+              for (@i <- iCh) {
+                match i {
+                  (true, canonical) => {
+                    if (canonical.toString() == publicationUri) { ret!((true, Nil)) }
+                    else { ret!((false, "publication")) }
+                  }
+                  _ => { ret!((false, "publication")) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "publication")) }
+        }
+      }
+    }
+  } |
+
+  contract commRole(@publicationUri, @callerId, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) {
+        Publication!("roleOf", callerId, *ret)
+      }
+    }
+  } |
+
+  contract commCharter(@publicationUri, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) {
+        Publication!("charter", *ret)
+      }
+    }
+  } |
+
+  contract commActive(@publicationUri, ret) = {
+    new cCh in {
+      rl!(publicationUri, *cCh) |
+      for (Publication <- cCh) { Publication!("status", *ret) }
+    }
+  } |
+
+  contract commNowHeight(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract CommissionFactory(@"propose", dId, @opId, @proposalId, @data, ret) = {
+    new oCh in {
+      authOwner!(*dId, *oCh) |
+      for (@o <- oCh) {
+        match o {
+          (true, writerId) => {
+            if (proposalId.length() == 0 || proposalId.length() > 96) {
+              ret!((false, "proposal"))
+            } else {
+              for (@fs <- commissionFactoryState) {
+                match fs.get("ops").get(writerId ++ ":" ++ opId) {
+                  Nil => {
+                    match fs.get("ids").get(proposalId) {
+                      Nil => {
+                        new cCh in {
+                          resolveComponent!("component:terms", *cCh) |
+                          for (@c <- cCh) {
+                            match c {
+                              (true, Terms) => {
+                                new vCh in {
+                                  @Terms!("commission", data, *vCh) |
+                                  for (@v <- vCh) {
+                                    match v {
+                                      (true, Nil) => {
+                                        new pCh in {
+                                          commCanonical!(data.get("publicationId"),
+                                                        data.get("publicationUri"), *pCh) |
+                                          for (@p <- pCh) {
+                                            match p {
+                                              (true, Nil) => {
+                                                new acCh in {
+                                                  commActive!(data.get("publicationUri"), *acCh) |
+                                                  for (@ac <- acCh) {
+                                                    match ac {
+                                                      (true, "active") => { pubProposalGo!(fs, writerId, opId, proposalId, data, *ret) }
+                                                      _ => { commissionFactoryState!(fs) | ret!((false, "paused")) }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                              _ => { commissionFactoryState!(fs) | ret!(p) }
+                                            }
+                                          }
+                                        }
+                                      }
+                                      _ => { commissionFactoryState!(fs) | ret!(v) }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { commissionFactoryState!(fs) | ret!((false, "terms")) }
+                            }
+                          }
+                        }
+                      }
+                      _ => { commissionFactoryState!(fs) | ret!((false, "duplicate")) }
+                    }
+                  }
+                  stored => { commissionFactoryState!(fs) | ret!(stored) }
+                }
+              }
+            }
+          }
+          _ => { ret!((false, "not owner")) }
+        }
+      }
+    }
+  } |
+
+  contract pubProposalGo(@fs, @writerId, @opId, @proposalId, @data, ret) = {
+    new nCh in {
+      commNowHeight!(*nCh) |
+      for (@n <- nCh) {
+        match n {
+          (true, now) => {
+            new CommissionProposal, proposalState, proposalCoverGo, proposalCoverBind,
+                proposalCoverMembership, proposalCoverAttach, uCh in {
+              proposalState!({
+                "proposalId": proposalId,
+                "publicationId": data.get("publicationId"),
+                "publicationUri": data.get("publicationUri"),
+                "writerId": writerId,
+                "writerDid": data.get("writerDid"),
+                "editorId": "",
+                "titleHash": data.get("titleHash"),
+                "briefHash": data.get("briefHash"),
+                "total": data.get("total"),
+                "milestones": data.get("milestones"),
+                "graceBlocks": data.get("graceBlocks"),
+                "disputeWindowBlocks": data.get("disputeWindowBlocks"),
+                "requireFactCheck": data.get("requireFactCheck"),
+                "coverUri": "",
+                "coverStatus": "",
+                "coverAssetId": "",
+                "coverPerClaimLimit": 0,
+                "coverAggregateRemaining": 0,
+                "coverInsured": "",
+                "status": "proposed",
+                "escrowUri": "",
+                "createdAtHeight": now,
+                "ops": {},
+                "schemaVersion": 1
+              }) |
+
+              contract CommissionProposal(@"info", ret2) = {
+                for (@s <<- proposalState) { ret2!((true, s.delete("ops"))) }
+              } |
+              contract CommissionProposal(@"status", ret2) = {
+                for (@s <<- proposalState) { ret2!((true, s.get("status"))) }
+              } |
+              contract CommissionProposal(@"milestones", ret2) = {
+                for (@s <<- proposalState) { ret2!((true, s.get("milestones"))) }
+              } |
+              contract CommissionProposal(@"cover", ret2) = {
+                for (@s <<- proposalState) {
+                  ret2!((true, s.get("coverUri"), s.get("coverStatus")))
+                }
+              } |
+
+              contract CommissionProposal(@"coverInfo", ret2) = {
+                for (@s <<- proposalState) {
+                  ret2!((true, {"coverUri": s.get("coverUri"),
+                                "coverStatus": s.get("coverStatus"),
+                                "coverAssetId": s.get("coverAssetId"),
+                                "coverPerClaimLimit": s.get("coverPerClaimLimit"),
+                                "coverAggregateRemaining": s.get("coverAggregateRemaining"),
+                                "coverInsured": s.get("coverInsured")}))
+                }
+              } |
+
+              contract CommissionProposal(@"attachCover", dId2, @opId2, @coverUri, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, callerId) => {
+                        for (@s <- proposalState) {
+                          match s.get("ops").get(callerId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "proposed" && s.get("status") != "accepted") {
+                                proposalState!(s) | ret2!((false, "status"))
+                              } else {
+                                new rCh in {
+                                  commRole!(s.get("publicationUri"), callerId, *rCh) |
+                                  for (@r <- rCh) {
+                                    match r {
+                                      (true, "editor") => { proposalCoverAttach!(s, callerId, opId2, coverUri, *ret2) }
+                                      (true, "publisher") => { proposalCoverAttach!(s, callerId, opId2, coverUri, *ret2) }
+                                      _ => { proposalState!(s) | ret2!((false, "role")) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            stored => { proposalState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              contract proposalCoverGo(@coverUri, ret2) = {
+                if (coverUri.length() == 0) {
+                  ret2!((false, "policy"))
+                } else {
+                  new aCh in {
+                    resolveComponent!("component:rsure-adapter", *aCh) |
+                    for (@a <- aCh) {
+                      match a {
+                        (true, Adapter) => {
+                          new vCh in {
+                            @Adapter!("policy", coverUri, *vCh) |
+                            for (@v <- vCh) {
+                              match v {
+                                (true, info) => { ret2!((true, info)) }
+                                _ => { ret2!((false, "policy")) }
+                              }
+                            }
+                          }
+                        }
+                        _ => { ret2!((false, "rsure adapter")) }
+                      }
+                    }
+                  }
+                }
+              } |
+
+              contract proposalCoverBind(@s, @callerId, @opId, @coverUri, @info,
+                                         @charter, ret2) = {
+                if (info.get("status") != "active") {
+                  proposalState!(s) | ret2!((false, "policy status"))
+                } else {
+                  if (info.get("insured") != charter.get("treasuryAccountId")) {
+                    proposalState!(s) | ret2!((false, "insured"))
+                  } else {
+                    if (info.get("assetId") != charter.get("assetId")) {
+                      proposalState!(s) | ret2!((false, "asset"))
+                    } else {
+                      proposalCoverMembership!(s, callerId, opId, coverUri, info, *ret2)
+                    }
+                  }
+                }
+              } |
+
+              contract proposalCoverMembership(@s, @callerId, @opId, @coverUri,
+                                               @info, ret2) = {
+                new aCh in {
+                  resolveComponent!("component:rsure-adapter", *aCh) |
+                  for (@a <- aCh) {
+                    match a {
+                      (true, Adapter) => {
+                        new mCh in {
+                          @Adapter!("membership", coverUri, *mCh) |
+                          for (@m <- mCh) {
+                            match m {
+                              (true, Nil) => {
+                                proposalState!(
+                                  s.set("coverUri", coverUri)
+                                   .set("coverStatus", info.get("status"))
+                                   .set("coverAssetId", info.get("assetId"))
+                                   .set("coverPerClaimLimit", info.get("perClaimLimit"))
+                                   .set("coverAggregateRemaining", info.get("aggregateRemaining"))
+                                   .set("coverInsured", info.get("insured"))
+                                   .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                ret2!((true, Nil))
+                              }
+                              _ => { proposalState!(s) | ret2!((false, "membership")) }
+                            }
+                          }
+                        }
+                      }
+                      _ => { proposalState!(s) | ret2!((false, "rsure adapter")) }
+                    }
+                  }
+                }
+              } |
+
+              contract proposalCoverAttach(@s, @callerId, @opId, @coverUri, ret2) = {
+                if (s.get("coverUri") != "") {
+                  if (s.get("coverUri") == coverUri) {
+                    proposalState!(
+                      s.set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                    ret2!((true, Nil))
+                  } else {
+                    proposalState!(s) | ret2!((false, "cover"))
+                  }
+                } else {
+                  new chCh in {
+                    commCharter!(s.get("publicationUri"), *chCh) |
+                    for (@ch <- chCh) {
+                      match ch {
+                        (true, charter) => {
+                          new cCh in {
+                            proposalCoverGo!(coverUri, *cCh) |
+                            for (@c <- cCh) {
+                              match c {
+                                (true, info) => {
+                                  proposalCoverBind!(s, callerId, opId, coverUri,
+                                                     info, charter, *ret2)
+                                }
+                                _ => { proposalState!(s) | ret2!(c) }
+                              }
+                            }
+                          }
+                        }
+                        _ => { proposalState!(s) | ret2!((false, "publication")) }
+                      }
+                    }
+                  }
+                }
+              } |
+
+              contract CommissionProposal(@"accept", dId2, @opId2, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, callerId) => {
+                        for (@s <- proposalState) {
+                          match s.get("ops").get(callerId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "proposed") {
+                                proposalState!(s) | ret2!((false, "status"))
+                              } else {
+                                new rCh in {
+                                  commRole!(s.get("publicationUri"), callerId, *rCh) |
+                                  for (@r <- rCh) {
+                                    match r {
+                                      (true, "editor") => {
+                                        proposalState!(
+                                          s.set("status", "accepted").set("editorId", callerId)
+                                           .set("ops", s.get("ops").set(callerId ++ ":" ++ opId2, (true, Nil)))) |
+                                        ret2!((true, Nil))
+                                      }
+                                      (true, "publisher") => {
+                                        proposalState!(
+                                          s.set("status", "accepted").set("editorId", callerId)
+                                           .set("ops", s.get("ops").set(callerId ++ ":" ++ opId2, (true, Nil)))) |
+                                        ret2!((true, Nil))
+                                      }
+                                      _ => { proposalState!(s) | ret2!((false, "role")) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            stored => { proposalState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              contract CommissionProposal(@"fund", dId2, @opId2, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, funderId) => {
+                        for (@s <- proposalState) {
+                          match s.get("ops").get(funderId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "accepted") {
+                                proposalState!(s) | ret2!((false, "status"))
+                              } else {
+                                new fCh in {
+                                  resolveComponent!("component:commission-escrow-factory", *fCh) |
+                                  for (@f <- fCh) {
+                                    match f {
+                                      (true, EscrowFactory) => {
+                                        new eCh in {
+                                          @EscrowFactory!("createFunded", *dId2, opId2,
+                                                          s.get("proposalId"),
+                                                          s.delete("ops"), *eCh) |
+                                          for (@e <- eCh) {
+                                            match e {
+                                              (true, escrowUri) => {
+                                                proposalState!(
+                                                  s.set("status", "funded").set("escrowUri", escrowUri)
+                                                   .set("ops", s.get("ops").set(funderId ++ ":" ++ opId2, (true, escrowUri)))) |
+                                                ret2!((true, escrowUri))
+                                              }
+                                              _ => { proposalState!(s) | ret2!(e) }
+                                            }
+                                          }
+                                        }
+                                      }
+                                      _ => { proposalState!(s) | ret2!((false, "escrow factory")) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            stored => { proposalState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              contract CommissionProposal(@"cancel", dId2, @opId2, @reasonHash, ret2) = {
+                new o2 in {
+                  authOwner!(*dId2, *o2) |
+                  for (@oc <- o2) {
+                    match oc {
+                      (true, callerId) => {
+                        for (@s <- proposalState) {
+                          match s.get("ops").get(callerId ++ ":" ++ opId2) {
+                            Nil => {
+                              if (s.get("status") != "proposed" && s.get("status") != "accepted") {
+                                proposalState!(s) | ret2!((false, "status"))
+                              } else {
+                                if (callerId == s.get("writerId") || callerId == s.get("editorId")) {
+                                  proposalState!(
+                                    s.set("status", "cancelled")
+                                     .set("ops", s.get("ops").set(callerId ++ ":" ++ opId2, (true, Nil)))) |
+                                  ret2!((true, Nil))
+                                } else {
+                                  proposalState!(s) | ret2!((false, "role"))
+                                }
+                              }
+                            }
+                            stored => { proposalState!(s) | ret2!(stored) }
+                          }
+                        }
+                      }
+                      _ => { ret2!((false, "not owner")) }
+                    }
+                  }
+                }
+              } |
+
+              rs!(bundle+{*CommissionProposal}, *uCh) |
+              for (@uri <- uCh) {
+                commissionFactoryState!(
+                  fs.set("ids", fs.get("ids").set(proposalId, uri))
+                    .set("ops", fs.get("ops").set(writerId ++ ":" ++ opId, (true, uri)))) |
+                ret!((true, uri))
+              }
+            }
+          }
+          _ => { commissionFactoryState!(fs) | ret!(n) }
+        }
+      }
+    }
+  } |
+
+  contract CommissionFactory(@"issued", @proposalId, ret) = {
+    for (@fs <<- commissionFactoryState) {
+      match fs.get("ids").get(proposalId) {
+        Nil => { ret!((false, "unknown")) }
+        uri => { ret!((true, uri)) }
+      }
+    }
+  } |
+
+  commissionFactoryState!({"ids": {}, "ops": {}, "schemaVersion": 1}) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*CommissionFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:commission-factory", uri, 1, "commission", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

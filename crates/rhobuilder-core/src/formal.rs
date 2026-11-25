@@ -162,6 +162,112 @@ pub fn check(project: &Path) -> Result<Value, ScaffoldError> {
 }
 
 /// Refresh the vendored library from the rhobuilder checkout.
+/// Check the per-app flow obligations and forbidden Lean escapes.
+///
+/// `owed` is a first-class status: the default gate accepts it and reports it; `strict`
+/// fails on it. A non-`owed` component must name a theorem that exists in the app's Lean
+/// tree. This is a model obligation check, never a Rholang refinement claim.
+pub fn obligations(project: &Path, strict: bool) -> Result<Value, ScaffoldError> {
+    let flows_path = project.join("spec").join("flows").join("core.yaml");
+    let text = std::fs::read_to_string(&flows_path).map_err(|source| ScaffoldError::Io {
+        path: flows_path.display().to_string(),
+        source,
+    })?;
+    let flows: Value = serde_json::from_str(&text)
+        .map_err(|error| ScaffoldError::Unresolved(format!("invalid flows JSON: {error}")))?;
+    let mut obligations = Vec::new();
+    let mut violations = Vec::new();
+    if let Some(components) = flows.get("components").and_then(Value::as_array) {
+        for component in components {
+            let arms: Vec<String> = component
+                .get("arms")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default();
+            if arms.is_empty() {
+                continue;
+            }
+            let id = component
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let status = component
+                .get("lean_status")
+                .and_then(Value::as_str)
+                .unwrap_or("missing");
+            let theorem = component.get("lean").and_then(Value::as_str).unwrap_or("");
+            if status == "missing" {
+                violations.push(format!("{id}: mutating arms have no lean_status"));
+            } else if status == "owed" {
+                if strict {
+                    violations.push(format!("{id}: strict mode rejects owed"));
+                }
+            } else if theorem.is_empty() {
+                violations.push(format!("{id}: status {status} has no named theorem"));
+            }
+            obligations.push(json!({
+                "component": id,
+                "arms": arms,
+                "lean_status": status,
+                "lean": theorem,
+            }));
+        }
+    }
+
+    let mut lean_files = 0;
+    let lean_root = project.join("spec").join("lean");
+    if lean_root.is_dir() {
+        let mut stack = vec![lean_root];
+        while let Some(directory) = stack.pop() {
+            let entries = std::fs::read_dir(&directory).map_err(|source| ScaffoldError::Io {
+                path: directory.display().to_string(),
+                source,
+            })?;
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|ext| ext.to_str()) != Some("lean") {
+                    continue;
+                }
+                lean_files += 1;
+                let text = std::fs::read_to_string(&path).map_err(|source| ScaffoldError::Io {
+                    path: path.display().to_string(),
+                    source,
+                })?;
+                for token in ["sorry", "admit", "axiom", "native_decide"] {
+                    if text
+                        .split(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+                        .any(|word| word == token)
+                    {
+                        violations.push(format!(
+                            "{}: forbidden Lean token {token}",
+                            path.strip_prefix(project).unwrap_or(&path).display()
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(json!({
+        "schema": "rhobuilder.formal-obligations/v1",
+        "ok": violations.is_empty(),
+        "strict": strict,
+        "obligations": obligations,
+        "leanFiles": lean_files,
+        "violations": violations,
+    }))
+}
+
 pub fn sync(project: &Path, source_root: &Path) -> Result<Value, ScaffoldError> {
     let Some(vendored) = collect(source_root)? else {
         return Err(ScaffoldError::MissingTemplate(

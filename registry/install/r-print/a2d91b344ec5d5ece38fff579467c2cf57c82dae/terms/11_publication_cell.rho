@@ -1,0 +1,751 @@
+// PublicationCellFactory + one Publication instance per masthead.
+// The factory and the cell are split so the factory term stays small and the cell owns one
+// publicationState cell. Placeholders: __ROOT_URI__.
+new
+  PublicationCellFactory,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, c, ack,
+  authOwner, authIsOwner, authPubKey, resolveComponent,
+  pubAdminsValid, pubArgsAppend, pubArgsToString, pubAnySig, pubCount, pubVerifyAdmin,
+  pubNow, pubCharterHash, pubCallerRole, pubPublishers, pubRoleOk,
+  pubArbitration, pubArbitrationAdminFallback
+in {
+contract resolveComponent(@key, ret) = {
+  new rCh, Root, kCh in {
+    rl!(`__ROOT_URI__`, *rCh) |
+    for (Root <- rCh) {
+      Root!("resolve", key, 1, *kCh) |
+      for (@r <- kCh) {
+        match r {
+          (true, uri, _) => {
+            new cCh in {
+              rl!(uri, *cCh) |
+              for (C <- cCh) { ret!((true, *C)) }
+            }
+          }
+          _ => { ret!((false, "unavailable", key)) }
+        }
+      }
+    }
+  }
+} |
+// Deployer identity helpers. r-cash owns accounts; r-share only derives the owner id.
+
+contract authOwner(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`), rev(`rho:rev:address`), pkCh, addrCh in {
+    dops!("pubKeyBytes", *dId, *pkCh) |
+    for (@pk <- pkCh) {
+      rev!("fromPublicKey", pk, *addrCh) |
+      for (@addr <- addrCh) { ret!((true, addr)) }
+    }
+  }
+} |
+
+contract authIsOwner(dId, @ownerId, ret) = {
+  new c in {
+    authOwner!(*dId, *c) |
+    for (@r <- c) {
+      match r {
+        (true, addr) => {
+          if (addr == ownerId) { ret!((true, Nil)) }
+          else { ret!((false, "not owner")) }
+        }
+        _ => { ret!((false, "not owner")) }
+      }
+    }
+  }
+} |
+
+contract authPubKey(dId, ret) = {
+  new dops(`rho:rchain:deployerId:ops`) in {
+    dops!("pubKeyBytes", *dId, *ret)
+  }
+} |
+contract pubAdminsValid(@admins, @threshold, @i, @seen, ret) = {
+  if (admins.length() < 1 || admins.length() > 5) {
+    ret!((false, "admins"))
+  } else {
+    if (threshold < 1 || threshold > admins.length()) {
+      ret!((false, "threshold"))
+    } else {
+      if (i >= admins.length()) {
+        ret!((true, Nil))
+      } else {
+        match admins.nth(i) {
+          a => {
+            new kCh in {
+              kCh!(a.bytesToHex()) |
+              for (@k <- kCh) {
+                if (seen.get(k) != Nil) {
+                  ret!((false, "duplicate key"))
+                } else {
+                  pubAdminsValid!(admins, threshold, i + 1, seen.set(k, true), *ret)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} |
+
+contract pubArgsAppend(@args, @i, @acc, ret) = {
+  if (i >= args.length()) {
+    ret!(acc)
+  } else {
+    match args.nth(i) {
+      a => { pubArgsAppend!(args, i + 1, acc ++ "," ++ a.toString(), *ret) }
+    }
+  }
+} |
+
+contract pubArgsToString(@args, ret) = {
+  if (args.length() == 0) {
+    ret!("")
+  } else {
+    match args.nth(0) {
+      a => {
+        new restCh in {
+          pubArgsAppend!(args, 1, a.toString(), *restCh) |
+          for (@s <- restCh) { ret!(s) }
+        }
+      }
+    }
+  }
+} |
+
+contract pubAnySig(@digest, @sigs, @j, @key, ret) = {
+  if (j >= sigs.length()) {
+    ret!(false)
+  } else {
+    new verify(`rho:crypto:secp256k1Verify`), vCh in {
+      match sigs.nth(j) {
+        sig => {
+          verify!(digest, sig, key, *vCh) |
+          for (@ok <- vCh) {
+            if (ok) { ret!(true) }
+            else { pubAnySig!(digest, sigs, j + 1, key, *ret) }
+          }
+        }
+      }
+    }
+  }
+} |
+
+contract pubCount(@digest, @sigs, @i, @count, @keys, @threshold, ret) = {
+  if (i >= keys.length()) {
+    ret!(count >= threshold)
+  } else {
+    match keys.nth(i) {
+      key => {
+        new anyCh in {
+          pubAnySig!(digest, sigs, 0, key, *anyCh) |
+          for (@any <- anyCh) {
+            if (any) { pubCount!(digest, sigs, i + 1, count + 1, keys, threshold, *ret) }
+            else { pubCount!(digest, sigs, i + 1, count, keys, threshold, *ret) }
+          }
+        }
+      }
+    }
+  }
+} |
+
+contract pubVerifyAdmin(@domain, @nonce, @action, @args, @sigs,
+                        @admins, @threshold, ret) = {
+  new hash(`rho:crypto:blake2b256Hash`), strCh, hashCh, okCh, avCh in {
+    pubArgsToString!(args, *strCh) |
+    for (@argStr <- strCh) {
+      match "rprint:admin:v1|" ++ domain ++ "|" ++ nonce.toString()
+            ++ "|" ++ action ++ "|" ++ argStr {
+        payload => {
+          hash!(payload.toUtf8Bytes(), *hashCh) |
+          for (@digest <- hashCh) {
+            pubAdminsValid!(admins, threshold, 0, {}, *avCh) |
+            for (@av <- avCh) {
+              match av {
+                (true, Nil) => {
+                  pubCount!(digest, sigs, 0, 0, admins, threshold, *okCh) |
+                  for (@ok <- okCh) { ret!((true, ok)) }
+                }
+                _ => { ret!((true, false)) }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} |
+
+  contract pubNow(ret) = {
+    new cCh in {
+      resolveComponent!("component:clock", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Clock) => { @Clock!("now", *ret) }
+          _ => { ret!((false, "clock")) }
+        }
+      }
+    }
+  } |
+
+  contract pubCharterHash(@publicationId, @charter, ret) = {
+    new cCh in {
+      resolveComponent!("component:codec", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Codec) => {
+            @Codec!("hash", "rprint:charter:v1",
+                    [publicationId, charter.get("nameHash"),
+                     charter.get("mastheadHash"), charter.get("taglineHash"),
+                     charter.get("treasuryAccountId"), charter.get("assetId")],
+                    *ret)
+          }
+          _ => { ret!((false, "codec")) }
+        }
+      }
+    }
+  } |
+
+  contract pubCallerRole(@st, @callerId, ret) = {
+    match st.get("members").get(callerId) {
+      Nil => { ret!((false, "not member")) }
+      m => {
+        if (m.get("status") != "active") { ret!((false, "not member")) }
+        else { ret!((true, m.get("role"))) }
+      }
+    }
+  } |
+
+  contract pubPublishers(@members, @keys, @i, @count, ret) = {
+    if (i >= keys.length()) {
+      ret!(count)
+    } else {
+      match members.get(keys.nth(i)) {
+        Nil => { pubPublishers!(members, keys, i + 1, count, *ret) }
+        m => {
+          if (m.get("status") == "active" && m.get("role") == "publisher") {
+            pubPublishers!(members, keys, i + 1, count + 1, *ret)
+          } else {
+            pubPublishers!(members, keys, i + 1, count, *ret)
+          }
+        }
+      }
+    }
+  } |
+
+  contract pubRoleOk(@role, ret) = {
+    new cCh in {
+      resolveComponent!("component:terms", *cCh) |
+      for (@c <- cCh) {
+        match c {
+          (true, Terms) => { @Terms!("role", role, *ret) }
+          _ => { ret!((false, "terms")) }
+        }
+      }
+    }
+  } |
+
+  contract pubArbitration(@st, ret) = {
+    match st.get("charter").get("governance").get("arbitrators") {
+      Nil => { pubArbitrationAdminFallback!(st, *ret) }
+      list => {
+        if (list.length() == 0) { pubArbitrationAdminFallback!(st, *ret) }
+        else {
+          ret!((true, "publication", list,
+                st.get("charter").get("governance").get("arbitrationThreshold")))
+        }
+      }
+    }
+  } |
+
+  contract pubArbitrationAdminFallback(@st, ret) = {
+    if (st.get("admins").length() >= 2) {
+      ret!((true, "publication", st.get("admins"), st.get("threshold")))
+    } else {
+      new aCh in {
+        resolveComponent!("component:admin", *aCh) |
+        for (@a <- aCh) {
+          match a {
+            (true, PrintAdmin) => {
+              new kCh in {
+                @PrintAdmin!("keys", *kCh) |
+                for (@k <- kCh) {
+                  match k {
+                    (true, keys, threshold) => {
+                      ret!((true, "platform", keys, threshold))
+                    }
+                    _ => { ret!((false, "platform admin")) }
+                  }
+                }
+              }
+            }
+            _ => { ret!((false, "platform admin")) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract PublicationCellFactory(@"spawn", @state, ret) = {
+    new Publication, publicationState, pubAddMemberGo, uCh in {
+      contract pubAddMemberGo(@s, @callerId, @opId, @memberId, @role, @did,
+                          @attestationHash, ret) = {
+    new nCh in {
+      pubNow!(*nCh) |
+      for (@n <- nCh) {
+        match n {
+          (true, now) => {
+            publicationState!(
+              s.set("members", s.get("members").set(memberId, {
+                  "role": role, "did": did,
+                  "attestationHash": attestationHash,
+                  "status": "active", "sinceHeight": now
+                }))
+               .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+            ret!((true, Nil))
+          }
+          _ => { publicationState!(s) | ret!(n) }
+        }
+      }
+    }
+  } |
+
+      publicationState!(state) |
+
+      contract Publication(@"info", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.delete("ops"))) }
+      } |
+      contract Publication(@"status", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.get("status"))) }
+      } |
+      contract Publication(@"charter", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.get("charter"))) }
+      } |
+      contract Publication(@"charterHash", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.get("charterHash"))) }
+      } |
+      contract Publication(@"members", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.get("members"))) }
+      } |
+      contract Publication(@"member", @memberId, ret2) = {
+        for (@s <<- publicationState) {
+          match s.get("members").get(memberId) {
+            Nil => { ret2!((false, "unknown member")) }
+            m => { ret2!((true, m)) }
+          }
+        }
+      } |
+      contract Publication(@"roleOf", @memberId, ret2) = {
+        for (@s <<- publicationState) {
+          match s.get("members").get(memberId) {
+            Nil => { ret2!((false, "not member")) }
+            m => {
+              if (m.get("status") != "active") { ret2!((false, "not member")) }
+              else { ret2!((true, m.get("role"))) }
+            }
+          }
+        }
+      } |
+      contract Publication(@"treasury", ret2) = {
+        for (@s <<- publicationState) {
+          ret2!((true, s.get("charter").get("treasuryAccountId")))
+        }
+      } |
+      contract Publication(@"admins", ret2) = {
+        for (@s <<- publicationState) {
+          ret2!((true, s.get("admins"), s.get("threshold")))
+        }
+      } |
+      contract Publication(@"arbitration", ret2) = {
+        for (@s <<- publicationState) { pubArbitration!(s, *ret2) }
+      } |
+      contract Publication(@"nonce", ret2) = {
+        for (@s <<- publicationState) { ret2!((true, s.get("nonce"))) }
+      } |
+
+      contract Publication(@"addMember", dId, @opId, @memberId, @role, @did,
+                           @attestationHash, ret2) = {
+        new oCh in {
+          authOwner!(*dId, *oCh) |
+          for (@oc <- oCh) {
+            match oc {
+              (true, callerId) => {
+                for (@s <- publicationState) {
+                  match s.get("ops").get(callerId ++ ":" ++ opId) {
+                    Nil => {
+                      if (s.get("status") != "active") {
+                        publicationState!(s) | ret2!((false, "paused"))
+                      } else {
+                        new rCh in {
+                          pubCallerRole!(s, callerId, *rCh) |
+                          for (@r <- rCh) {
+                            match r {
+                              (true, "publisher") => {
+                                if (memberId.length() == 0) {
+                                  publicationState!(s) | ret2!((false, "member"))
+                                } else {
+                                  new roCh in {
+                                    pubRoleOk!(role, *roCh) |
+                                    for (@ro <- roCh) {
+                                      match ro {
+                                        (true, Nil) => {
+                                          if (s.get("members").size()
+                                              >= s.get("charter").get("governance").get("maxMembers")) {
+                                            publicationState!(s) | ret2!((false, "members"))
+                                          } else {
+                                            match s.get("members").get(memberId) {
+                                              Nil => { pubAddMemberGo!(s, callerId, opId, memberId, role, did, attestationHash, *ret2) }
+                                              old => {
+                                                if (old.get("status") == "active") {
+                                                  publicationState!(s) | ret2!((false, "duplicate"))
+                                                } else {
+                                                  pubAddMemberGo!(s, callerId, opId, memberId, role, did, attestationHash, *ret2)
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                        _ => { publicationState!(s) | ret2!(ro) }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                              _ => { publicationState!(s) | ret2!((false, "role")) }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    stored => { publicationState!(s) | ret2!(stored) }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract Publication(@"removeMember", dId, @opId, @memberId, ret2) = {
+        new oCh in {
+          authOwner!(*dId, *oCh) |
+          for (@oc <- oCh) {
+            match oc {
+              (true, callerId) => {
+                for (@s <- publicationState) {
+                  match s.get("ops").get(callerId ++ ":" ++ opId) {
+                    Nil => {
+                      new rCh in {
+                        pubCallerRole!(s, callerId, *rCh) |
+                        for (@r <- rCh) {
+                          match r {
+                            (true, "publisher") => {
+                              match s.get("members").get(memberId) {
+                                Nil => { publicationState!(s) | ret2!((false, "unknown member")) }
+                                m => {
+                                  if (m.get("status") != "active") {
+                                    publicationState!(s) | ret2!((false, "unknown member"))
+                                  } else {
+                                    new pCh in {
+                                      pubPublishers!(s.get("members"), s.get("members").keys().toList(), 0, 0, *pCh) |
+                                      for (@pcount <- pCh) {
+                                        if (m.get("role") == "publisher" && pcount <= 1) {
+                                          publicationState!(s) | ret2!((false, "last publisher"))
+                                        } else {
+                                          publicationState!(
+                                            s.set("members", s.get("members").set(
+                                                memberId, m.set("status", "removed")))
+                                             .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                          ret2!((true, Nil))
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            _ => { publicationState!(s) | ret2!((false, "role")) }
+                          }
+                        }
+                      }
+                    }
+                    stored => { publicationState!(s) | ret2!(stored) }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract Publication(@"setRole", dId, @opId, @memberId, @role, ret2) = {
+        new oCh in {
+          authOwner!(*dId, *oCh) |
+          for (@oc <- oCh) {
+            match oc {
+              (true, callerId) => {
+                for (@s <- publicationState) {
+                  match s.get("ops").get(callerId ++ ":" ++ opId) {
+                    Nil => {
+                      new rCh in {
+                        pubCallerRole!(s, callerId, *rCh) |
+                        for (@r <- rCh) {
+                          match r {
+                            (true, "publisher") => {
+                              new roCh in {
+                                pubRoleOk!(role, *roCh) |
+                                for (@ro <- roCh) {
+                                  match ro {
+                                    (true, Nil) => {
+                                      match s.get("members").get(memberId) {
+                                        Nil => { publicationState!(s) | ret2!((false, "unknown member")) }
+                                        m => {
+                                          if (m.get("status") != "active") {
+                                            publicationState!(s) | ret2!((false, "unknown member"))
+                                          } else {
+                                            new pCh in {
+                                              pubPublishers!(s.get("members"), s.get("members").keys().toList(), 0, 0, *pCh) |
+                                              for (@pcount <- pCh) {
+                                                if (m.get("role") == "publisher"
+                                                    && role != "publisher" && pcount <= 1) {
+                                                  publicationState!(s) | ret2!((false, "last publisher"))
+                                                } else {
+                                                  publicationState!(
+                                                    s.set("members", s.get("members").set(
+                                                        memberId, m.set("role", role)))
+                                                     .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                                  ret2!((true, Nil))
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                    _ => { publicationState!(s) | ret2!(ro) }
+                                  }
+                                }
+                              }
+                            }
+                            _ => { publicationState!(s) | ret2!((false, "role")) }
+                          }
+                        }
+                      }
+                    }
+                    stored => { publicationState!(s) | ret2!(stored) }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract Publication(@"attestSelf", dId, @opId, @did, @attestationHash, ret2) = {
+        new oCh in {
+          authOwner!(*dId, *oCh) |
+          for (@oc <- oCh) {
+            match oc {
+              (true, callerId) => {
+                for (@s <- publicationState) {
+                  match s.get("members").get(callerId) {
+                    Nil => { publicationState!(s) | ret2!((false, "not member")) }
+                    m => {
+                      if (m.get("status") != "active") {
+                        publicationState!(s) | ret2!((false, "not member"))
+                      } else {
+                        publicationState!(
+                          s.set("members", s.get("members").set(
+                              callerId, m.set("did", did).set("attestationHash", attestationHash)))
+                           .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                        ret2!((true, Nil))
+                      }
+                    }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract Publication(@"pause", dId, @opId, @paused, ret2) = {
+        new oCh in {
+          authOwner!(*dId, *oCh) |
+          for (@oc <- oCh) {
+            match oc {
+              (true, callerId) => {
+                for (@s <- publicationState) {
+                  match s.get("ops").get(callerId ++ ":" ++ opId) {
+                    Nil => {
+                      new rCh in {
+                        pubCallerRole!(s, callerId, *rCh) |
+                        for (@r <- rCh) {
+                          match r {
+                            (true, "publisher") => {
+                              if (paused) {
+                                publicationState!(
+                                  s.set("status", "paused")
+                                   .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                ret2!((true, Nil))
+                              } else {
+                                publicationState!(
+                                  s.set("status", "active")
+                                   .set("ops", s.get("ops").set(callerId ++ ":" ++ opId, (true, Nil)))) |
+                                ret2!((true, Nil))
+                              }
+                            }
+                            _ => { publicationState!(s) | ret2!((false, "role")) }
+                          }
+                        }
+                      }
+                    }
+                    stored => { publicationState!(s) | ret2!(stored) }
+                  }
+                }
+              }
+              _ => { ret2!((false, "not owner")) }
+            }
+          }
+        }
+      } |
+
+      contract Publication(@"admin", @nonce, @action, @args, @sigs, ret2) = {
+        for (@s <- publicationState) {
+          if (nonce <= s.get("nonce")) {
+            publicationState!(s) | ret2!((false, "replay"))
+          } else {
+            new vCh in {
+              pubVerifyAdmin!("publication:" ++ s.get("publicationId"), nonce, action,
+                              args, sigs, s.get("admins"), s.get("threshold"), *vCh) |
+              for (@v <- vCh) {
+                match v {
+                  (true, true) => {
+                    match action {
+                      "pause" => {
+                        publicationState!(s.set("status", "paused").set("nonce", nonce)) |
+                        ret2!((true, Nil))
+                      }
+                      "resume" => {
+                        publicationState!(s.set("status", "active").set("nonce", nonce)) |
+                        ret2!((true, Nil))
+                      }
+                      "setAdmins" => {
+                        match args.nth(0) {
+                          newAdmins => {
+                            match args.nth(1) {
+                              newThreshold => {
+                                new tCh in {
+                                  resolveComponent!("component:terms", *tCh) |
+                                  for (@t <- tCh) {
+                                    match t {
+                                      (true, Terms) => {
+                                        new avCh in {
+                                          @Terms!("admins", newAdmins, newThreshold, *avCh) |
+                                          for (@av <- avCh) {
+                                            match av {
+                                              (true, Nil) => {
+                                                publicationState!(s.set("admins", newAdmins).set("threshold", newThreshold).set("nonce", nonce)) |
+                                                ret2!((true, Nil))
+                                              }
+                                              _ => { publicationState!(s) | ret2!(av) }
+                                            }
+                                          }
+                                        }
+                                      }
+                                      _ => { publicationState!(s) | ret2!((false, "terms")) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      "setThreshold" => {
+                        match args.nth(0) {
+                          newThreshold => {
+                            new tCh in {
+                              resolveComponent!("component:terms", *tCh) |
+                              for (@t <- tCh) {
+                                match t {
+                                  (true, Terms) => {
+                                    new avCh in {
+                                      @Terms!("admins", s.get("admins"), newThreshold, *avCh) |
+                                      for (@av <- avCh) {
+                                        match av {
+                                          (true, Nil) => {
+                                            publicationState!(s.set("threshold", newThreshold).set("nonce", nonce)) |
+                                            ret2!((true, Nil))
+                                          }
+                                          _ => { publicationState!(s) | ret2!(av) }
+                                        }
+                                      }
+                                    }
+                                  }
+                                  _ => { publicationState!(s) | ret2!((false, "terms")) }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      "setTreasury" => {
+                        match args.nth(0) {
+                          newTreasury => {
+                            new hCh in {
+                              pubCharterHash!(s.get("publicationId"),
+                                              s.get("charter").set("treasuryAccountId", newTreasury),
+                                              *hCh) |
+                              for (@h <- hCh) {
+                                match h {
+                                  (true, charterHash) => {
+                                    publicationState!(s.set("charter", s.get("charter").set("treasuryAccountId", newTreasury)).set("charterHash", charterHash).set("nonce", nonce)) |
+                                    ret2!((true, Nil))
+                                  }
+                                  _ => { publicationState!(s) | ret2!(h) }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      _ => { publicationState!(s) | ret2!((false, "unknown action")) }
+                    }
+                  }
+                  _ => { publicationState!(s) | ret2!((false, "below threshold")) }
+                }
+              }
+            }
+          }
+        }
+      } |
+
+      rs!(bundle+{*Publication}, *uCh) |
+      for (@uri <- uCh) { ret!((true, uri)) }
+    }
+  } |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*PublicationCellFactory}, *c) |
+    for (@uri <- c) {
+      Root!("register", "component:publication-cell-factory", uri, 1, "publication", *deployerId, *ack) |
+      for (@r <- ack) {
+        match r {
+          (true, Nil) => { deployId!([uri]) }
+          _ => { 1/0 }
+        }
+      }
+    }
+  }
+}

@@ -87,7 +87,7 @@ test('registry drift carries the source root and strict flag', () => {
   ])
 })
 
-test('verify is always read-only', () => {
+test('registry verify is read-only by construction', () => {
   const invocation = buildInvocation(
     'registry',
     { action: 'verify', network: 'testnet' },
@@ -99,7 +99,6 @@ test('verify is always read-only', () => {
     'verify',
     '--network',
     'testnet',
-    '--read-only',
   ])
 })
 
@@ -128,20 +127,51 @@ test('scaffold plans unless confirm is true', () => {
   assert.ok(!apply.args.includes('--plan'))
 })
 
-test('chain explore carries the uri', () => {
+test('chain status carries the network', () => {
   const invocation = buildInvocation(
     'chain',
-    { action: 'explore', network: 'testnet', uri: 'rho:id:abc' },
+    { action: 'status', network: 'testnet' },
     CONFIG,
   )
   assert.deepEqual(invocation.args, [
     '--json',
     'chain',
-    'explore',
+    'status',
     '--network',
     'testnet',
-    '--uri',
-    'rho:id:abc',
+  ])
+})
+
+test('check maps to the project gate profile', () => {
+  const invocation = buildInvocation(
+    'check',
+    { project: '/tmp/app', profile: 'formal' },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, [
+    '--json',
+    'check',
+    '--project',
+    '/tmp/app',
+    '--profile',
+    'formal',
+  ])
+})
+
+test('plan maps to the read-only deploy plan', () => {
+  const invocation = buildInvocation(
+    'plan',
+    { project: '/tmp/app', network: 'testnet' },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, [
+    '--json',
+    'deploy',
+    'plan',
+    '--project',
+    '/tmp/app',
+    '--network',
+    'testnet',
   ])
 })
 

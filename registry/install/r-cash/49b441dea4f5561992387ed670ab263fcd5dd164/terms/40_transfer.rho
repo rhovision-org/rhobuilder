@@ -1,0 +1,273 @@
+// v0.4 TransferBook: one escrow contract per transfer, no shared escrow purse.
+// The caller supplies the per-owner transfer id; the book holds no counter, so
+// the send path has no shared state cell. Each TransferContract is the
+// authoritative cell for its own payment, claim hash, expiry and terminal
+// status: claim and refund consume the same cell, so exactly one of them wins.
+// Placeholders: __ROOT_URI__.
+new
+  TransferBook, bookParamsState,
+  transferNow, bookAmount, bookSendCheck,
+  rl(`rho:registry:lookup`),
+  rs(`rho:registry:insertArbitrary`),
+  revAddress(`rho:rev:address`),
+  deployerIdOps(`rho:rchain:deployerId:ops`),
+  deployerId(`rho:rchain:deployerId`),
+  deployId(`rho:rchain:deployId`),
+  rootCh, Root, uBook, ack
+in {
+
+  contract transferNow(ret) = {
+    new rCh, cCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", "component:clock", 1, *cCh) |
+        for (@(true, clockUri, _) <- cCh) {
+          new cc in {
+            rl!(clockUri, *cc) |
+            for (Clock <- cc) { Clock!("now", *ret) }
+          }
+        }
+      }
+    }
+  } |
+
+  contract bookAmount(@assetId, payment, ret) = {
+    new rCh, resCh, ac, issuerCh in {
+      rl!(`__ROOT_URI__`, *rCh) |
+      for (Root <- rCh) {
+        Root!("resolve", "component:asset-resolver", 1, *resCh) |
+        for (@(true, resUri, _) <- resCh) {
+          rl!(resUri, *ac) |
+          for (AssetResolver <- ac) {
+            AssetResolver!("issuer", assetId, *issuerCh) |
+            for (@ir <- issuerCh) {
+              match ir {
+                (true, _, issuer) => { @issuer!("getAmountOf", *payment, *ret) }
+                _ => { ret!(ir) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  // Validate the send bounds before measuring or escrowing anything. Every
+  // refusal returns the caller's payment so the account can restore custody.
+  contract bookSendCheck(@bp, @amount, @expiry, @memo, @opId, @stipend, payment, ret) = {
+    new nowCh in {
+      transferNow!(*nowCh) |
+      for (@now <- nowCh) {
+        if (amount <= 0 || amount < bp.get("minAmount")) {
+          ret!((false, "amount", *payment))
+        } else {
+          if (expiry <= now || expiry > now + bp.get("maxExpiryBlocks")) {
+            ret!((false, "expiry", *payment))
+          } else {
+            if (memo.toUtf8Bytes().length() > bp.get("maxMemoBytes")) {
+              ret!((false, "memo", *payment))
+            } else {
+              if (opId.toUtf8Bytes().length() > bp.get("maxOpIdBytes")) {
+                ret!((false, "opId", *payment))
+              } else {
+                if (stipend < 0 || stipend > bp.get("maxStipend")) {
+                  ret!((false, "stipend", *payment))
+                } else { ret!((true, Nil)) }
+              }
+            }
+          }
+        }
+      }
+    }
+  } |
+
+  contract TransferBook(@"send", @senderId, @id, recipientFacet, refundFacet,
+                        @assetId, @amount, payment, @secretHash, @expiry,
+                        @memo, @opId, @stipend, ret) = {
+    for (@bp <<- bookParamsState) {
+      new checkCh in {
+        bookSendCheck!(bp, amount, expiry, memo, opId, stipend, *payment, *checkCh) |
+        for (@ck <- checkCh) {
+          match ck {
+            (true, Nil) => {
+            new amtCh in {
+            bookAmount!(assetId, *payment, *amtCh) |
+            for (@measured <- amtCh) {
+              match measured {
+                (true, actual) => {
+                  if (actual != amount) {
+                    ret!((false, "amount mismatch", *payment))
+                  } else {
+            new TransferContract, transferState, uCh in {
+                    contract TransferContract(@"claim", @secret, ret2) = {
+                      new nowCh in {
+                      transferNow!(*nowCh) |
+                      for (@now <- nowCh) {
+                      for (@ts <<- transferState) {
+                        match ts.get("status") {
+                          "open" => {
+                            if (now >= expiry) {
+                              ret2!((false, "expired"))
+                            } else {
+                            new rCh, ccCh, hCh in {
+                              rl!(`__ROOT_URI__`, *rCh) |
+                              for (Root <- rCh) {
+                                Root!("resolve", "component:claim-code", 1, *ccCh) |
+                                for (@(true, claimUri, _) <- ccCh) {
+                                  new cCh in {
+                                    rl!(claimUri, *cCh) |
+                                    for (ClaimCode <- cCh) {
+                                      ClaimCode!("hash", secret, *hCh) |
+                                      for (@h <- hCh) {
+                                        if (h != secretHash) {
+                                          ret2!((false, "bad secret"))
+                                        } else {
+                                          // Deposit first, then take and revalidate.
+                                          // A refused deposit must not close the
+                                          // transfer: match it and fail the deploy.
+                                          new dCh in {
+                                            recipientFacet!("deposit", *payment, *dCh) |
+                                            for (@d <- dCh) {
+                                              match d {
+                                                (true, _) => {
+                                                  for (@ts2 <- transferState) {
+                                                    match ts2.get("status") {
+                                                      "open" => {
+                                                        transferState!({"status": "claimed",
+                                                          "memo": memo, "opId": opId,
+                                                          "stipend": stipend}) |
+                                                        ret2!(d)
+                                                      }
+                                                      _ => { transferState!(ts2) | ret2!(1 / 0) }
+                                                    }
+                                                  }
+                                                }
+                                                _ => { ret2!(1 / 0) }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                            }
+                          _ => { ret2!((false, "closed")) }
+                        }
+                      }
+                      }
+                      } } |
+
+                    contract TransferContract(@"refund", dId, ret2) = {
+                      for (@ts <<- transferState) {
+                        match ts.get("status") {
+                          "open" => {
+                            new rCh, cCh, nowCh2, pkCh, aCh in {
+                              rl!(`__ROOT_URI__`, *rCh) |
+                              for (Root <- rCh) {
+                                Root!("resolve", "component:clock", 1, *cCh) |
+                                for (@(true, clockUri, _) <- cCh) {
+                                  new cc in {
+                                    rl!(clockUri, *cc) |
+                                    for (Clock <- cc) {
+                                      Clock!("now", *nowCh2) |
+                                      for (@now2 <- nowCh2) {
+                                        if (now2 < expiry) {
+                                          ret2!((false, "not expired"))
+                                        } else {
+                                          deployerIdOps!("pubKeyBytes", *dId, *pkCh) |
+                                          for (@pk <- pkCh) {
+                                            revAddress!("fromPublicKey", pk, *aCh) |
+                                            for (@addr <- aCh) {
+                                              if (addr != senderId) {
+                                                ret2!((false, "not sender"))
+                                              } else {
+                                                // Deposit first, then take and
+                                                // revalidate. A refused refund
+                                                // must leave the transfer open.
+                                                new dCh in {
+                                                  refundFacet!("deposit", *payment, *dCh) |
+                                                  for (@d <- dCh) {
+                                                    match d {
+                                                      (true, _) => {
+                                                        for (@ts2 <- transferState) {
+                                                          match ts2.get("status") {
+                                                            "open" => {
+                                                              transferState!({"status": "refunded",
+                                                                "memo": memo, "opId": opId,
+                                                                "stipend": stipend}) |
+                                                              ret2!(d)
+                                                            }
+                                                            _ => { transferState!(ts2) | ret2!(1 / 0) }
+                                                          }
+                                                        }
+                                                      }
+                                                      _ => { ret2!(1 / 0) }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          _ => { ret2!((false, "closed")) }
+                        }
+                      }
+                    } |
+
+                    contract TransferContract(@"info", ret2) = {
+                      for (@ts <<- transferState) {
+                        ret2!((true, {
+                          "sender": senderId,
+                          "asset": assetId,
+                          "amount": amount,
+                          "secretHash": secretHash,
+                          "expiry": expiry,
+                          "status": ts.get("status"),
+                          "memo": ts.get("memo"),
+                          "opId": ts.get("opId"),
+                          "stipend": ts.get("stipend")
+                        }))
+                      }
+                    } |
+
+              transferState!({"status": "open", "memo": memo, "opId": opId,
+                              "stipend": stipend}) |
+              rs!(bundle+{*TransferContract}, *uCh) |
+              for (@uri <- uCh) { ret!((true, id, uri)) }
+            }
+          }
+                  }
+                _ => { ret!((false, "asset", *payment)) }
+              }
+            }
+            }
+          }
+          _ => { ret!(ck) }
+        }
+      }
+    }
+  }
+  } |
+
+  bookParamsState!(__BOOK_PARAMS__) |
+
+  rl!(`__ROOT_URI__`, *rootCh) |
+  for (Root <- rootCh) {
+    rs!(bundle+{*TransferBook}, *uBook) |
+    for (@uri <- uBook) {
+      Root!("register", "component:transfer-book", uri, 1, "domain", *deployerId, *ack) |
+      for (@r <- ack) { deployId!([uri]) }
+    }
+  }
+}
