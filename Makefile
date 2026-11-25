@@ -17,7 +17,7 @@ help:
 	@echo "  make plugin-test    node --test agents/deepseek/plugin/test"
 	@echo "  make ui-test        check and test the rhobuilder DSH UI package"
 	@echo "  make launcher-test  python unittest for tools/"
-	@echo "  make docs-check     mdBook build plus SUMMARY/link check"
+	@echo "  make docs-check     mdBook build plus docs/README link/status check"
 	@echo "  make dsh-check      read-only DeepSeek Harness preflight"
 	@echo "  make chain-probe    read-only testnet identity probe"
 	@echo "  make registry-check validate the committed registry"

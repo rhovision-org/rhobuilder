@@ -1,17 +1,17 @@
-# Devnet end-to-end
+# Local devnet
 
 P5 is measured on the local `devnet-bootstrap`, not just scaffolded. The evidence is
 `docs/src/evidence/p5-devnet.json`.
 
 ## What was run
 
-1. Recovered the node non-destructively: the admin resource-resume was refused, a
-   container restart cleared the in-memory latch, and the memory cap was raised to 12 GiB
-   against the existing volume. Height and data were preserved.
-2. Generated devnet ops keys under `.ops/devnet/` (mode 0600) and funded the deployer
-   once from the in-container validator.
-3. Installed the vendored, pinned graph in dependency order:
-   r-cash core, r-gen, r-share safe, r-sure, r-print.
+1. Recovered the node non-destructively: the admin resource-resume was refused, a container
+   restart cleared the in-memory latch, and the memory cap was raised to 12 GiB against the
+   existing volume. Height and data were preserved.
+2. Generated devnet ops keys under `.ops/devnet/` (mode 0600) and funded the deployer once
+   from the in-container validator.
+3. Installed the vendored, pinned graph in dependency order: r-cash core, r-gen, r-share
+   safe, r-sure, r-print.
 4. Verified every app root and its required Root keys through a signed read. A second run
    adopted all five with zero duplicate deploys.
 5. Generated the `bookable-service` example, deployed its eight terms, and ran nine
@@ -31,8 +31,9 @@ P5 is measured on the local `devnet-bootstrap`, not just scaffolded. The evidenc
 Suites: `root`, `payments`, `booking`, `cover`, `dispute`, `refusal`, `idempotency`,
 `conservation`, `concurrency` — all pass.
 
-The r-cash core profile omits `51_pool` and `50_market`. The pinned node rejects
-`51_pool` with `parse depth exceeded`; no app in the graph requires either component.
+The r-cash core profile omits `51_pool` and `50_market`. The pinned node rejects `51_pool`
+with `parse depth exceeded`; no app in the graph requires either component. The full
+sibling suite set (all 33 r-share suites) is not re-run here.
 
 ## Safe lifecycle
 
@@ -45,15 +46,18 @@ python3 tools/devnet.py onboard --json --execute  # devnet only
 make devnet-status                               # the same read-only status
 ```
 
-`status` is read-only. `start` only starts the existing `RHOBUILDER_CONTAINER`
-(default `devnet-bootstrap`) and waits for `degraded == "normal"` and
-`acceptsDeploys`; it never runs `docker run/create/rm`, `volume rm`, compose, reset or
-restart. `onboard` is a dry run unless `--execute` is passed; execution is devnet-only
-and runs keygen, funding, the baseline install and deep verify in order, stopping on the
-first failure. The tool resolves the CLI from `--rhobuilder`, `RHOBUILDER_BIN`,
-`bin/rhobuilder`, then `target/release/rhobuilder`.
+`status` is read-only. `start` only starts the existing `RHOBUILDER_CONTAINER` (default
+`devnet-bootstrap`) and waits for `degraded == "normal"` and `acceptsDeploys`; it never runs
+`docker run/create/rm`, `volume rm`, compose, reset or restart. `onboard` is a dry run
+unless `--execute` is passed; execution is devnet-only and runs keygen, funding, the
+baseline install and deep verify in order, stopping on the first failure. The tool resolves
+the CLI from `--rhobuilder`, `RHOBUILDER_BIN`, `bin/rhobuilder`, then
+`target/release/rhobuilder`.
 
-## Commands
+If the container is missing, create it from your RNodeRust checkout; this tool will not
+create or reset it. See [Troubleshooting](troubleshooting.md).
+
+## Manual commands
 
 ```sh
 # read-only plan and local install
@@ -79,8 +83,8 @@ The generated app harness reads `RHOBUILDER_DEVNET=1`, `RHOBUILDER_BIN`,
 prints `not_run` and exits 2; it never reports a pass. `deployments/suite-results.json`
 records `pass`/`fail`/`not_run`.
 
-## Still owed
+## Read next
 
-The full sibling suite set (all 33 r-share suites) is not re-run here. The
-`bookable-service` model is a shallow `proved-model` and passes `formal check --strict`;
-generic scaffolds keep their arms `owed`, so strict mode fails on them by design.
+- [Public testnet](baseline.md) — the gated campaign.
+- [Testing and gates](testing.md) — how these suites fit the pyramid.
+- [Command reference](command-reference.md) — flags and exit codes.

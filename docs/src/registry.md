@@ -1,6 +1,6 @@
 # Registry and reuse
 
-The registry is the builder's source of truth for what already exists. It is curated, not
+The registry is the builder’s source of truth for what already exists. It is curated, not
 discovered: rholo has no indexer, and a `rho:id` lookup proves resolution, not code
 identity.
 
@@ -28,6 +28,8 @@ primitive; BYOID/FreeTrust are external references.
   deployed Rholang.
 - **new** — a genuinely uncovered capability, with `whyUnique`, a checked
   `noRegisteredAlternative`, and a recorded user override.
+- **network** — a primitive’s per-network root/status; a `candidate` or `missing` root is
+  not a verified dependency.
 
 ## Pins
 
@@ -35,7 +37,7 @@ primitive; BYOID/FreeTrust are external references.
 - r-gen is per-consumer: `bcc840c…` in r-print, `c0ae67d…` in r-sure.
 - r-share/r-print/r-bridge local HEADs are not configured pins; record
   `TBD-review-required` until a maintainer pins them.
-- Drift reads `git show <rev>:<path>`, never a dirty worktree, and fails "pin unavailable"
+- Drift reads `git show <rev>:<path>`, never a dirty worktree, and fails “pin unavailable”
   rather than reporting false drift.
 
 ## Networks
@@ -44,21 +46,27 @@ primitive; BYOID/FreeTrust are external references.
 - Testnet (measured 2026-11-25): `https://testnet.rhobot.net`, network id
   `testnet-133b1d307b175012`, shard `/testnet`, genesis
   `133b1d307b1750129cf0cfb69c4c8f950da21c4e8db2a6a076464d0ccfd98d44` from
-  `/api/blocks/0/0`, four validators. The docs' `c596bef4…` is stale.
+  `/api/blocks/0/0`, four validators.
 - Mainnet: no live rhovision rholo mainnet; the profile is read-only and refuses deploys.
 
 ## Testnet baseline
 
-The committed r-cash `testnet-v4.json` (`7srr…`) is partial. A newer uncommitted
-`.testnet/testnet-v4.json` (`dzaz…`, account factory `d9qp…`) is a candidate, not a
-verified manifest. r-gen has no committed testnet install manifest; r-print/r-sure have
-none. Treat all testnet roots as `candidate/unverified` until a live resolve succeeds.
+The committed r-cash manifest is partial; a newer candidate is unverified. Treat all
+testnet roots as `candidate/unverified` until a signed Root resolve succeeds. The canonical
+blocker list, pins and approval checkpoints live in [Public testnet](baseline.md); do not
+restate them here.
 
-`rhobuilder baseline verify` re-resolves every recorded root; a stored manifest is
-evidence, not authority. A testnet reset invalidates it.
+`rhobuilder baseline verify` re-resolves every recorded root; a stored manifest is evidence,
+not authority. A testnet reset invalidates it.
 
 ## Read budget
 
 Public `explore-deploy` returns HTTP 429 quickly. Identity probes use
 status/capabilities/shards/blocks. Root verification is opt-in, cached and backoff-aware;
 a 429 is `not_run`, not a pass.
+
+## Read next
+
+- [Design and reuse](design.md) — the gate that consumes this catalog.
+- [Public testnet](baseline.md) — blockers and campaign gates.
+- [Command reference](command-reference.md) — `registry list|get|graph|verify|drift`.

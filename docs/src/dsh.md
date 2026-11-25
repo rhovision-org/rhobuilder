@@ -18,19 +18,8 @@ python3 tools/launch_dsh.py headless "Design a bookable service"
 ```
 
 `--check` and `--print-config` are read-only. A launch writes the skill export and the
-overlay, then runs DSH.
-
-## The studio UI
-
-The web launch mounts `agents/deepseek/ui` by absolute path through the launcher patch.
-It replaces the stock brand, sets the page title/favicon/description with the supported
-`webServer.tapIndex` transform, adds a rhobuilder welcome hero and a **Rhobuilder**
-dashboard page. The dashboard reads local registry/evidence files and fixed read-only CLI
-commands; the composer is the only write surface, limited to a validated `design.json`.
-Every route uses the DSH browser-token fence. See [Rhobuilder studio UI](ui.md).
-
-The launcher applies a rhobuilder persona by default (`rhobuilder` preset). Agent Teams and
-the architect/reviewer/prover subagents remain opt-in with `--study build`.
+overlay, then runs DSH. The web launch mounts the studio; see [Studio tour](ui.md). Install
+and version compatibility live in [Install](install.md).
 
 ## The plugin
 
@@ -44,14 +33,14 @@ the architect/reviewer/prover subagents remain opt-in with `--study build`.
 - `rhobuilder_plan` — read-only deploy plan.
 - `rhobuilder_chain` — probe/status/deploy-status, read-only.
 
-The bridge maps every tool to a real CLI subcommand. `registry verify` is read-only by
-construction; the obsolete `--read-only` flag is gone. `chain explore` is not exposed:
-the node's exploratory deploy cannot see the native registry, so the CLI uses a signed
+`bridge.js` maps every tool to a real CLI subcommand. `registry verify` is read-only by
+construction; the obsolete `--read-only` flag is gone. `chain explore` is not exposed: the
+node’s exploratory deploy cannot see the native registry, so the CLI uses a signed
 `chain call` only for local suites, never for DSH.
 
 The plugin imports nothing from `@deepseek-ai/*`; it mounts by absolute path with no
-`node_modules`. Its `spawn` is trusted host code, so the surface is narrow and never
-exposes a signed deploy.
+`node_modules`. Its `spawn` is trusted host code, so the surface is narrow and never exposes
+a signed deploy.
 
 ## Skills and presets
 
@@ -64,16 +53,15 @@ Critical platform rules stay inline in each `SKILL.md`; DSH does not auto-read
 presets. Web and headless compose presets differently: web overwrites
 `agent-preset-registry`; headless inserts it plus the presets.
 
-## Versions and permissions
+## Permissions and distribution
 
-Tested on DSH `0.2.2-rc.5` with Node 22.22.2. `0.2.3-alpha.2` needs Node 24.22.3+.
-A live model session has not been run because `DEEPSEEK_API_KEY` is unset; `--check`
-reports that honestly. The overlay and plugin contract are validated.
 The launcher sets `DSH_PERMISSION_MODE=workspace-write`, a repo-local `DSH_HOME`, and never
-uses `danger-full-access` or `sdk-minimal`.
+uses `danger-full-access` or `sdk-minimal`. There is no DSH plugin marketplace; install by
+cloning the repo and launching from it, or mount the dependency-free plugin by absolute path
+in your own overlay. A Claude Code `SKILL.md` export is secondary portability only.
 
-## Distribution
+## Read next
 
-There is no DSH plugin marketplace. Install by cloning the repo and launching from it, or
-mount the dependency-free plugin by absolute path in your own overlay. A Claude Code
-`SKILL.md` export is secondary portability only.
+- [Studio tour](ui.md) — what the web launch shows.
+- [Install](install.md) — Node/DSH versions and the release tarball.
+- [MCP server](mcp.md) — the optional read-only/plan lane.

@@ -1,11 +1,15 @@
 # Non-technical fitness review
 
-**Verdict:** rhobuilder is a strong, honest developer/CI engine and a weak non-technical
-product. The technical gate is roughly **7.5/10**; the one-stop-shop experience is roughly
-**2.5/10** until the UI, readiness and packaging work below lands.
+This is historical acceptance evidence from the original audit, not the current user guide.
+The product has changed since the verdict; use [Quickstart](../start.md) and
+[Studio tour](../ui.md) for current instructions.
 
-This review is acceptance evidence, not a side report. Each finding has a disposition and a
-traceability row to the UI or CLI change that addresses it.
+**Verdict at review time:** rhobuilder was a strong, honest developer/CI engine and a weak
+non-technical product. The technical gate was roughly **7.5/10**; the one-stop-shop
+experience was roughly **2.5/10** until the UI, readiness and packaging work landed.
+
+Each finding has a disposition and a traceability row to the UI or CLI change that
+addresses it.
 
 ## What is genuinely strong
 
@@ -64,20 +68,8 @@ traceability row to the UI or CLI change that addresses it.
 
 ## Plain-language glossary
 
-- **rholo** — the blockchain these dApps run on. Deploys are signed.
-- **`rho:id`** — an unforgeable on-chain address for a contract or component.
-- **Primitive** — a reusable on-chain capability owned by another app, such as r-cash
-  accounts or r-sure escrow.
-- **Root** — an app’s directory contract that resolves component keys to `rho:id`s.
-- **Scaffold** — a generated project skeleton; it is not a finished app.
-- **Linear cell** — one state resource that is taken and reposted exactly once.
-- **`owed`** — a proof obligation that has not been written yet.
-- **`not_run`** — the check did not execute (for example, the devnet is unhealthy); it is
-  not a pass.
-- **`proved-model`** — proved about the shallow Lean model, never a refinement of the
-  deployed Rholang.
-- **Devnet / testnet / mainnet** — local disposable chain / public gated chain / no live
-  rhovision mainnet.
+The glossary now lives in [Glossary](../glossary.md). It covers `rho:id`, primitives, roots,
+linear cells, `owed`, `not_run`, `proved-model` and the network terms.
 
 ## Traceability to the UI work
 
@@ -92,7 +84,7 @@ traceability row to the UI or CLI change that addresses it.
 | P1-4 | Readiness “source build” warning |
 | P1-5 | Portable launcher/package paths |
 | P1-6 | CLI key-load containment |
-| P2-1..P2-4 | Status badges, evidence panel, apply confirmation, glossary |
+| P2-1..P2-4 | Status badges, evidence panel, apply confirmation, [Glossary](../glossary.md) |
 
 ## Boundary
 

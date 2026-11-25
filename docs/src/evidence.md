@@ -8,8 +8,8 @@ The machine-readable P5 records are:
   `payments-ledger` root, its four generated contracts, and the static/smoke checks.
 
 They contain no keys. The studio renders both records, including suite statuses, with a
-raw-JSON disclosure. `evidence/testnet-campaign.template.json` is a template, not a
-record; the UI excludes `.template.json` files from the measured-evidence feed.
+raw-JSON disclosure. `evidence/testnet-campaign.template.json` is a template, not a record;
+the UI excludes `.template.json` files from the measured-evidence feed.
 
 ## Reading it
 
@@ -22,10 +22,17 @@ record; the UI excludes `.template.json` files from the measured-evidence feed.
   design arms remain `owed`; it has no behavioural suite.
 
 Evidence is not authority. The live check is `baseline verify --deep`, which re-resolves
-every root at a finalized block.
+every root at a finalized block. See [Testing and gates](testing.md) for status meaning and
+[Glossary](glossary.md) for `not_run`/`owed`/`verified`.
 
 ## What is deliberately absent
 
 - No public-testnet execution record, because no live campaign has been approved.
 - No key material.
 - No claim of Rholang refinement; per-app Lean obligations remain `owed`.
+
+## Read next
+
+- [Public testnet](baseline.md) — why there is no testnet evidence yet.
+- [Local devnet](devnet.md) — how P5 was measured.
+- [Testing and gates](testing.md) — how to reproduce the checks.

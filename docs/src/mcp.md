@@ -30,7 +30,7 @@ tools appear as `mcp__rhobuilder__*`.
 - `rhobuilder_formal_check`.
 
 No tool applies a scaffold, signs a deploy, writes a key or mutates the registry. Those
-remain CLI-only.
+remain CLI-only. See [Security model](security.md) and [Architecture](architecture.md).
 
 ## Lanes
 

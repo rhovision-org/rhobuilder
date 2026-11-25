@@ -1,8 +1,14 @@
 [book]
 title = "rhobuilder"
+description = "Design the unique part of a rholo dApp, reuse the on-chain primitive graph, and deploy only what is new."
 authors = ["rhovision"]
 language = "en"
 src = "docs/src"
 
 [build]
 build-dir = "docs/book"
+
+[output.html]
+git-repository-url = "https://github.com/rhovision-org/rhobuilder"
+edit-url-template = "https://github.com/rhovision-org/rhobuilder/edit/main/docs/src/{path}"
+default-theme = "rust"
