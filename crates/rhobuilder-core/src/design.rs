@@ -216,12 +216,16 @@ pub enum DesignError {
     Json(String),
 }
 
+pub fn parse(text: &str) -> Result<Design, DesignError> {
+    serde_json::from_str(text).map_err(|error| DesignError::Json(error.to_string()))
+}
+
 pub fn load(path: &Path) -> Result<Design, DesignError> {
     let text = std::fs::read_to_string(path).map_err(|source| DesignError::Io {
         path: path.display().to_string(),
         source,
     })?;
-    serde_json::from_str(&text).map_err(|error| DesignError::Json(error.to_string()))
+    parse(&text)
 }
 
 fn is_kebab(value: &str) -> bool {
@@ -519,6 +523,14 @@ mod tests {
             "acceptance": [{"id": "a1", "given": "g", "when": "w", "then": "t"}]
         }))
         .expect("design")
+    }
+
+    #[test]
+    fn parse_reads_an_in_memory_design() {
+        let text = serde_json::to_string(&minimal()).expect("serialize");
+        let design = parse(&text).expect("parse");
+        assert_eq!(design.app.slug, "demo");
+        assert!(parse("{not json").is_err());
     }
 
     #[test]

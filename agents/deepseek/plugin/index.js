@@ -1,4 +1,4 @@
-// The rhobuilder DSH plugin: six tools over `rhobuilder --json`.
+// The rhobuilder DSH plugin: seven tools over `rhobuilder --json`.
 //
 // It imports nothing from @deepseek-ai/*. DSH's ToolsService.register accepts a plain
 // ToolDefinition (parameters, output.schema, output.render, execute), so the plugin mounts
@@ -55,9 +55,32 @@ function renderCheck(_args, value) {
   try {
     const gates = Array.isArray(value?.gates) ? value.gates : []
     const failed = gates.filter((gate) => gate?.status === 'fail')
+    const notRun = gates.filter((gate) => gate?.status === 'not_run')
+    const owed = Array.isArray(value?.owed) ? value.owed : []
     const lines = [`check ${value?.profile ?? '?'}: ${value?.ok ? 'ok' : 'failed'}`]
     for (const gate of gates) lines.push(`- ${gate?.name ?? '?'}: ${gate?.status ?? '?'}`)
     if (failed.length > 0) lines.push(`${failed.length} gate(s) failed`)
+    if (notRun.length > 0) lines.push(`${notRun.length} gate(s) not run; not run is not a pass`)
+    if (owed.length > 0) lines.push(`owed: ${owed.join(', ')}`)
+    return content(lines.join('\n'))
+  } catch {
+    return renderJson(_args, value)
+  }
+}
+
+function renderStatus(_args, value) {
+  try {
+    const badges = Array.isArray(value?.badges) ? value.badges : []
+    const lines = [
+      `project ${value?.project?.slug ?? '?'}: ${
+        value?.design?.ok ? 'design ok' : 'design refused or unchecked'
+      }`,
+    ]
+    for (const badge of badges) {
+      lines.push(`- ${badge?.label ?? '?'}: ${badge?.state ?? '?'} — ${badge?.detail ?? ''}`)
+    }
+    const owed = Array.isArray(value?.owed) ? value.owed : []
+    if (owed.length > 0) lines.push(`owed: ${owed.join(', ')}`)
     return content(lines.join('\n'))
   } catch {
     return renderJson(_args, value)
@@ -170,7 +193,7 @@ export function apply(ctx, config = {}) {
       execute: (args, exec) => {
         requireAction(args, ['validate', 'report'])
         requireString(args, 'path')
-        return runBridge('design', args, cfg, exec)
+        return runBridge('design', args, cfg, { ...exec, acceptRefusal: true })
       },
     }),
   )
@@ -220,6 +243,28 @@ export function apply(ctx, config = {}) {
         return runBridge('check', args, cfg, exec)
       },
       render: renderCheck,
+    }),
+  )
+
+  ctx.tools.register(
+    tool({
+      name: 'rhobuilder_status',
+      description:
+        'Report a project read-only: design/scaffold completeness, recorded tests, Lean model obligations, owed arms and deployment records. It never runs make, Docker or a network call.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', description: 'project directory' },
+        },
+        required: ['project'],
+        additionalProperties: false,
+      },
+      timeoutMs: cfg.timeoutMs,
+      execute: (args, exec) => {
+        requireString(args, 'project')
+        return runBridge('project', { action: 'status', project: args.project }, cfg, exec)
+      },
+      render: renderStatus,
     }),
   )
 

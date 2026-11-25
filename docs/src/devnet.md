@@ -34,6 +34,25 @@ Suites: `root`, `payments`, `booking`, `cover`, `dispute`, `refusal`, `idempoten
 The r-cash core profile omits `51_pool` and `50_market`. The pinned node rejects
 `51_pool` with `parse depth exceeded`; no app in the graph requires either component.
 
+## Safe lifecycle
+
+```sh
+python3 tools/devnet.py status --json
+python3 tools/devnet.py start --json
+python3 tools/devnet.py wait --json
+python3 tools/devnet.py onboard --json            # dry run
+python3 tools/devnet.py onboard --json --execute  # devnet only
+make devnet-status                               # the same read-only status
+```
+
+`status` is read-only. `start` only starts the existing `RHOBUILDER_CONTAINER`
+(default `devnet-bootstrap`) and waits for `degraded == "normal"` and
+`acceptsDeploys`; it never runs `docker run/create/rm`, `volume rm`, compose, reset or
+restart. `onboard` is a dry run unless `--execute` is passed; execution is devnet-only
+and runs keygen, funding, the baseline install and deep verify in order, stopping on the
+first failure. The tool resolves the CLI from `--rhobuilder`, `RHOBUILDER_BIN`,
+`bin/rhobuilder`, then `target/release/rhobuilder`.
+
 ## Commands
 
 ```sh

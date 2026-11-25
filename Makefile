@@ -7,7 +7,8 @@ DESIGN ?= fixtures/designs/booking.json
 
 .PHONY: help check rust-check fmt clippy test plugin-test ui-test launcher-test \
 	docs docs-check dsh-check registry-check registry-drift vendor-install-check gates-check \
-	package-check chain-probe design-check design-refuse scaffold-e2e mcp-test baseline-plan formal-check clean
+	package-check chain-probe design-check design-refuse scaffold-e2e mcp-test baseline-plan \
+	baseline-preflight devnet-status formal-check clean
 
 help:
 	@echo "rhobuilder targets:"
@@ -28,6 +29,8 @@ help:
 	@echo "  make design-refuse  assert the duplicate-escrow fixture is refused"
 	@echo "  make scaffold-e2e   generate the booking fixture and run its gates"
 	@echo "  make baseline-plan  read-only testnet baseline plan"
+	@echo "  make baseline-preflight read-only pins/roots/funding blockers"
+	@echo "  make devnet-status  read-only local devnet container/node status"
 	@echo "  make formal-check   P4: Lean RhoApp and per-dApp obligations"
 
 check: rust-check plugin-test ui-test mcp-test launcher-test registry-check vendor-install-check gates-check package-check design-check docs-check
@@ -71,6 +74,12 @@ chain-probe:
 
 baseline-plan:
 	./target/debug/rhobuilder --json baseline plan --network testnet
+
+baseline-preflight:
+	./target/debug/rhobuilder --json baseline preflight --network testnet
+
+devnet-status:
+	$(PY) tools/devnet.py status --json
 
 design-check:
 	$(CARGO) run -q -p rhobuilder-cli -- --json design check --path $(DESIGN)

@@ -7,7 +7,9 @@ The machine-readable P5 records are:
 - [`evidence/p5-generic-ledger.json`](evidence/p5-generic-ledger.json) — the generic
   `payments-ledger` root, its four generated contracts, and the static/smoke checks.
 
-They contain no keys.
+They contain no keys. The studio renders both records, including suite statuses, with a
+raw-JSON disclosure. `evidence/testnet-campaign.template.json` is a template, not a
+record; the UI excludes `.template.json` files from the measured-evidence feed.
 
 ## Reading it
 

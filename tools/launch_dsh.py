@@ -25,11 +25,11 @@ import shutil
 import subprocess
 import sys
 import tomllib
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import devnet
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "agents" / "deepseek" / "harness.toml"
@@ -708,34 +708,30 @@ def _probe_tool(name: str, missing_status: str, hint: str) -> Check:
 
 
 def _probe_devnet(args: argparse.Namespace) -> Check:
-    docker = shutil.which("docker")
-    if docker is None:
+    node = os.environ.get("RHOBUILDER_NODE", devnet.DEFAULT_NODE).rstrip("/")
+    container = os.environ.get("RHOBUILDER_CONTAINER", devnet.DEFAULT_CONTAINER)
+    value = devnet.status(container, node)
+    node_status = value.get("node", {})
+    if not node_status.get("reachable"):
         return Check(
             "devnet",
             "setup",
-            "docker is not installed; devnet execution will not run",
-            "Install Docker or use a remote devnet and set RHOBUILDER_NODE",
+            f"{node} is unreachable: {node_status.get('error', 'unknown error')}",
+            value.get("nextCommand")
+            or "Start or recover the local devnet; the dashboard will show not_run until it is healthy",
         )
-    node = os.environ.get("RHOBUILDER_NODE", "http://localhost:40403").rstrip("/")
-    try:
-        with urllib.request.urlopen(f"{node}/api/v1/status", timeout=3) as response:
-            status = json.load(response)
-    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+    if not node_status.get("healthy"):
         return Check(
             "devnet",
             "setup",
-            f"{node} is unreachable: {exc}",
-            "Start or recover the local devnet; the dashboard will show not_run until it is healthy",
+            f"{node} is {node_status.get('degraded', 'unknown')}; deploys are not healthy",
+            value.get("nextCommand")
+            or "Restart the devnet or wait for the resource latch to clear",
         )
-    degraded = status.get("degraded", "unknown")
-    if degraded != "normal" or not status.get("acceptsDeploys", False):
-        return Check(
-            "devnet",
-            "setup",
-            f"{node} is {degraded}; deploys are not healthy",
-            "Restart the devnet or wait for the resource latch to clear",
-        )
-    return Check("devnet", "ok", f"{node} normal at block {status.get('latestBlockNumber', '?')}")
+    detail = f"{node} normal at block {node_status.get('latestBlockNumber', '?')}"
+    if not value.get("container", {}).get("exists"):
+        detail += "; the local container is missing (remote node?)"
+    return Check("devnet", "ok", detail, value.get("nextCommand"))
 
 
 def _probe_registry(args: argparse.Namespace) -> Check:

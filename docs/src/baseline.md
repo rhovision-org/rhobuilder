@@ -5,12 +5,21 @@ deploy, faucet spend or consolidation has been executed.** Live execution requir
 separate explicit campaign approval and a funded key.
 
 ```sh
+make baseline-preflight
+rhobuilder --json baseline preflight --network testnet
 rhobuilder --json baseline plan   --network testnet
 rhobuilder --json baseline run    --network testnet --dry-run
 rhobuilder --json baseline run    --network testnet --execute --keys <path>   # exit 5 without approval
 rhobuilder --json baseline verify --network testnet --deep --keys <path> \
   --allow-live --confirm 'network=testnet,networkId=…,genesis=…'
 ```
+
+`baseline preflight` is a read-only report over the registry files. It lists pins
+(including `TBD-review-required`), candidate/missing roots, faucet arithmetic, the
+execution gates and every blocker. It reports; it does not resolve anything. `--strict`
+exits 1 while blockers remain. The campaign evidence template is
+`docs/src/evidence/testnet-campaign.template.json`; it is not evidence and must not be
+filled until an approved campaign actually runs.
 
 ## What is implemented
 

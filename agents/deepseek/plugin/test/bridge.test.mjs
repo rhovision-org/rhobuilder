@@ -240,6 +240,67 @@ test('runBridge surfaces a non-JSON failure', async () => {
   )
 })
 
+test('project status maps to the read-only CLI', () => {
+  const invocation = buildInvocation(
+    'project',
+    { action: 'status', project: '/tmp/app' },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, [
+    '--json',
+    'project',
+    'status',
+    '--project',
+    '/tmp/app',
+  ])
+})
+
+test('design stdin uses --stdin and no path', () => {
+  const invocation = buildInvocation(
+    'design',
+    { action: 'validate', stdin: true },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, ['--json', 'design', 'validate', '--stdin'])
+})
+
+test('a known error kind leads with actionable prose', () => {
+  assert.throws(
+    () =>
+      parseBridgeStdout(
+        '{"kind":"error","error":{"type":"IdentityMismatch","status":"identity_mismatch","message":"wrong genesis","hint":"Re-probe."}}',
+      ),
+    (error) =>
+      /node is not the network/.test(error.message) &&
+      error.prose &&
+      /wrong genesis/.test(error.message) &&
+      /Re-probe/.test(error.message),
+  )
+})
+
+test('acceptRefusal returns a structured refusal document', () => {
+  const document = parseBridgeStdout('{"schema":"x","ok":false,"verdict":"refuse","owed":["panel"]}', {
+    acceptRefusal: true,
+  })
+  assert.equal(document.ok, false)
+  assert.equal(document.verdict, 'refuse')
+  assert.equal(document.owed[0], 'panel')
+})
+
+test('runBridge can feed stdin and return a refusal', async () => {
+  const script = fakeScript(
+    'cat >/dev/null; printf \'{"schema":"x","ok":false,"verdict":"refuse","owed":["panel"]}\'; exit 2',
+  )
+  const document = await runBridge(
+    'design',
+    { action: 'validate', stdin: true },
+    { command: script, args: [], cwd: process.cwd() },
+    { input: '{"schema":"rhobuilder.design/v1"}', acceptRefusal: true },
+  )
+  assert.equal(document.verdict, 'refuse')
+  assert.equal(document.owed[0], 'panel')
+})
+
 test('buildInvocation refuses an unknown tool', () => {
   assert.throws(() => buildInvocation('nope', {}, CONFIG), /unknown tool/)
 })

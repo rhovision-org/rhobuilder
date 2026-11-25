@@ -1,0 +1,54 @@
+{
+  "schema": "rhobuilder.testnet-campaign/v1",
+  "template": true,
+  "campaign": {
+    "name": "all-five public-testnet baseline",
+    "network": "testnet",
+    "networkId": "testnet-133b1d307b175012",
+    "genesisBlockHash": "133b1d307b1750129cf0cfb69c4c8f950da21c4e8db2a6a076464d0ccfd98d44",
+    "approvalReference": "REQUIRED: operator approval id or note",
+    "approvedBy": "REQUIRED",
+    "approvedAt": "REQUIRED"
+  },
+  "pins": {
+    "r-cash": "REQUIRED",
+    "r-gen": "REQUIRED",
+    "r-sure": "REQUIRED",
+    "r-share": "REQUIRED",
+    "r-print": "REQUIRED"
+  },
+  "roots": {
+    "r-cash": {
+      "status": "candidate",
+      "committedManifest": "REQUIRED",
+      "uncommittedCandidate": "REQUIRED",
+      "accountFactoryCandidate": "REQUIRED",
+      "verified": false
+    },
+    "r-gen": { "status": "missing", "verified": false },
+    "r-sure": { "status": "missing", "verified": false },
+    "r-share": { "status": "missing", "verified": false },
+    "r-print": { "status": "missing", "verified": false }
+  },
+  "funding": {
+    "faucetAmount": 30000000,
+    "dripsRequired": 1,
+    "note": "One 0.3 REV drip per address; consolidation and any additional spend need separate approval."
+  },
+  "steps": [
+    { "step": "baseline plan", "status": "not_run", "evidence": "" },
+    { "step": "baseline run --execute", "status": "not_run", "evidence": "" },
+    { "step": "baseline verify --deep", "status": "not_run", "evidence": "" }
+  ],
+  "checks": {
+    "identity": "not_run",
+    "funding_arithmetic": "not_run",
+    "partial_root": "not_run",
+    "root_resolve": "not_run"
+  },
+  "notes": [
+    "This is a template, not evidence. Do not fill it in until an approved campaign actually runs.",
+    "A partial r-cash root stops the campaign; reconcile it manually rather than deploying a duplicate.",
+    "No keys or secrets belong in this file."
+  ]
+}

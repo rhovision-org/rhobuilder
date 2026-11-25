@@ -99,6 +99,27 @@ class OverlayTests(unittest.TestCase):
         argv = launch_dsh._launch_argv(args, dsh, Path("/tmp/patch.yml"), None)
         self.assertEqual(argv[-3:], ["--port", "3082", "--no-open"])
 
+    def test_devnet_probe_uses_the_shared_status_and_keeps_a_hint(self) -> None:
+        healthy = {
+            "node": {"reachable": True, "healthy": True, "latestBlockNumber": 9},
+            "container": {"exists": True},
+            "nextCommand": "python3 tools/devnet.py onboard --json",
+        }
+        with mock.patch.object(launch_dsh.devnet, "status", return_value=healthy):
+            check = launch_dsh._probe_devnet(args_for())
+        self.assertEqual(check.status, "ok")
+        self.assertIn("block 9", check.detail)
+
+        down = {
+            "node": {"reachable": False, "healthy": False, "error": "down"},
+            "container": {"exists": True},
+            "nextCommand": "python3 tools/devnet.py start --container devnet-bootstrap",
+        }
+        with mock.patch.object(launch_dsh.devnet, "status", return_value=down):
+            check = launch_dsh._probe_devnet(args_for())
+        self.assertEqual(check.status, "setup")
+        self.assertIn("devnet.py start", check.hint or "")
+
     def test_api_key_is_setup_required_when_unset(self) -> None:
         with mock.patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
             check = launch_dsh._probe_key(args_for())

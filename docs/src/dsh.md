@@ -25,21 +25,22 @@ overlay, then runs DSH.
 The web launch mounts `agents/deepseek/ui` by absolute path through the launcher patch.
 It replaces the stock brand, sets the page title/favicon/description with the supported
 `webServer.tapIndex` transform, adds a rhobuilder welcome hero and a **Rhobuilder**
-dashboard page. The dashboard reads only local registry/evidence files and fixed read-only
-CLI commands; every route uses the DSH browser-token fence. See [Rhobuilder studio
-UI](ui.md).
+dashboard page. The dashboard reads local registry/evidence files and fixed read-only CLI
+commands; the composer is the only write surface, limited to a validated `design.json`.
+Every route uses the DSH browser-token fence. See [Rhobuilder studio UI](ui.md).
 
 The launcher applies a rhobuilder persona by default (`rhobuilder` preset). Agent Teams and
 the architect/reviewer/prover subagents remain opt-in with `--study build`.
 
 ## The plugin
 
-`agents/deepseek/plugin/index.js` registers six tools over `rhobuilder --json`:
+`agents/deepseek/plugin/index.js` registers seven tools over `rhobuilder --json`:
 
 - `rhobuilder_registry` — list/get/graph/verify/drift primitives.
 - `rhobuilder_design` — validate or report a design.
 - `rhobuilder_scaffold` — plan (default) or apply a skeleton.
 - `rhobuilder_check` — static/formal/full project gates via its Makefile.
+- `rhobuilder_status` — read-only project status and badges.
 - `rhobuilder_plan` — read-only deploy plan.
 - `rhobuilder_chain` — probe/status/deploy-status, read-only.
 

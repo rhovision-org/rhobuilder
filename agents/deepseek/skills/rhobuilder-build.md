@@ -41,10 +41,13 @@ acting.
    `rhobuilder-lean4`. Add the model and flow obligations. `owed` is honest; `proved-model`
    is the ceiling, never a refinement.
 7. **Test.** Read `rhobuilder-testing`. Run `rhobuilder_check` with `static`, then
-   `formal`, then `full` on a devnet. A not-run suite is not a pass.
+   `formal`, then `full` on a devnet. A not-run suite is not a pass. Call
+   `rhobuilder_status` and report `Scaffold`, `Implemented`, `Tested`, `Proved model`,
+   `Owed` and `Not run` separately.
 8. **Plan deploy.** Call `rhobuilder_plan`. It reuses registered primitives and refuses a
    duplicate, missing dependency, identity mismatch or mainnet. Present the plan; do not
-   execute it.
+   execute it. For a testnet campaign, present `baseline preflight` blockers; never run
+   the live step without explicit approval.
 
 ## Stop conditions
 

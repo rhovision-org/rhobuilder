@@ -101,7 +101,12 @@ def check_layout() -> list[str]:
     for name in ["registry/primitives.json", "templates/dapp/common/Makefile", "skills.toml"]:
         if not (ROOT / name).is_file():
             errors.append(f"missing {name}")
-    for name in ["agents/deepseek/plugin/index.js", "agents/deepseek/ui/index.js", "tools/launch_dsh.py"]:
+    for name in [
+        "agents/deepseek/plugin/index.js",
+        "agents/deepseek/ui/index.js",
+        "tools/launch_dsh.py",
+        "tools/devnet.py",
+    ]:
         if not (ROOT / name).is_file():
             errors.append(f"missing {name}")
     wrapper = ROOT / "tools" / "launch-rhobuilder.sh"
@@ -194,6 +199,31 @@ def self_test(tar_path: Path) -> list[str]:
                 ],
                 "new plan",
             ),
+            (
+                [
+                    str(binary),
+                    "new",
+                    str(temp / "scaffold-app"),
+                    "--design",
+                    "fixtures/designs/booking.json",
+                    "--template",
+                    "headless",
+                    "--apply",
+                    "--force",
+                ],
+                "new apply",
+            ),
+            (
+                [
+                    str(binary),
+                    "--json",
+                    "project",
+                    "status",
+                    "--project",
+                    str(temp / "scaffold-app"),
+                ],
+                "project status",
+            ),
         ]
         for argv, label in commands:
             try:
@@ -220,6 +250,15 @@ def self_test(tar_path: Path) -> list[str]:
                 errors.append("packaged wrapper did not render the rhobuilder web overlay")
         except (OSError, subprocess.TimeoutExpired) as exc:
             errors.append(f"packaged wrapper: {exc}")
+        try:
+            proc = run([sys.executable, "tools/devnet.py", "onboard", "--json"], root)
+            document = json.loads(proc.stdout) if proc.stdout.strip().startswith("{") else {}
+            if document.get("schema") != "rhobuilder.devnet-onboard/v1":
+                errors.append("devnet onboard: no onboarding JSON")
+            if any("testnet" in command for command in document.get("commands", [])):
+                errors.append("devnet onboard: offered a testnet command")
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            errors.append(f"devnet onboard: {exc}")
         return errors
 
 

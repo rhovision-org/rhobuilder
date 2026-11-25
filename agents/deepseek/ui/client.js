@@ -169,7 +169,7 @@ function Hero({ hero, children }) {
         h(Badge, { tone: 'ok' }, 'P5 devnet measured'),
         h(Badge, { tone: 'warn' }, 'P6 testnet gated'),
         h(Badge, { tone: 'neutral' }, 'Mainnet refused'),
-        h(Badge, { tone: 'neutral' }, 'Read-only studio'),
+        h(Badge, { tone: 'neutral' }, 'Design save only'),
       ),
       h(
         'p',
@@ -240,10 +240,359 @@ function useApi(path, initial) {
 }
 
 function statusTone(status) {
-  if (status === 'ok' || status === 'pass') return 'ok'
-  if (status === 'fail') return 'fail'
-  if (status === 'warn' || status === 'setup' || status === 'not_run') return 'warn'
+  const value = String(status ?? '')
+  if (['ok', 'pass', 'verified', 'tested'].includes(value)) return 'ok'
+  if (['fail', 'refused'].includes(value)) return 'fail'
+  if (
+    ['warn', 'setup', 'not_run', 'not-run', 'owed', 'proved-model', 'candidate'].includes(value) ||
+    value.startsWith('not_run')
+  ) {
+    return 'warn'
+  }
   return 'neutral'
+}
+
+const FIELD = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '6px 8px',
+  borderRadius: 6,
+  border: `1px solid ${BORDER}`,
+  background: 'var(--dsw-alias-bg-base, #ffffff)',
+  color: INK,
+  font: '13px/1.4 system-ui, sans-serif',
+}
+
+const LABEL = { display: 'block', margin: '9px 0 0', color: MUTED, fontSize: 12 }
+
+function splitList(value) {
+  return String(value ?? '')
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function buildDesignDraft(form = {}) {
+  const name = String(form.name ?? '').trim()
+  const slug =
+    String(form.slug ?? '').trim() ||
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') ||
+    'new-app'
+  const reusePrimitives = splitList(form.reuse ?? 'rcash.account-factory')
+  const customId = String(form.customId ?? 'unique').trim() || 'unique'
+  const arms = splitList(form.arms ?? 'act')
+  const actors = splitList(form.actors ?? 'user:act').map((line) => {
+    const [id, capabilities] = line.split(':')
+    return {
+      id: String(id ?? '').trim() || 'user',
+      capabilities: splitList(capabilities ?? 'act'),
+    }
+  })
+  const resources = splitList(form.resources ?? `${customId}-state:${customId}State`).map((line) => {
+    const [id, stateCell] = line.split(':')
+    return {
+      id: String(id ?? '').trim() || `${customId}-state`,
+      owner: 'app',
+      stateCell: String(stateCell ?? '').trim() || `${customId}State`,
+      lifecycle: ['open', 'closed'],
+    }
+  })
+  const components = reusePrimitives.map((primitive, index) => ({
+    id: String(primitive).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || `reuse-${index + 1}`,
+    tag: 'reuse',
+    primitive,
+    adapter: `adapter-${index + 1}.rho`,
+  }))
+  const leanStatus = String(form.leanStatus ?? 'owed').trim() || 'owed'
+  const custom = {
+    id: customId,
+    tag: 'new',
+    kind: 'custom',
+    whyUnique:
+      String(form.customWhy ?? '').trim() ||
+      'Describe the coordination this app owns instead of rebuilding a commodity primitive.',
+    noRegisteredAlternative: [reusePrimitives[0] ?? 'rcash.account-factory'],
+    arms,
+    invariants: splitList(form.invariants ?? ''),
+  }
+  if (leanStatus === 'proved-model') {
+    custom.leanStatus = 'proved-model'
+    custom.lean = String(form.lean ?? 'model').trim() || 'model'
+  } else {
+    custom.leanStatus = 'owed'
+  }
+  components.push(custom)
+  return {
+    schema: 'rhobuilder.design/v1',
+    app: {
+      name,
+      slug,
+      summary: String(form.summary ?? '').trim(),
+      networks: ['devnet', 'testnet'],
+    },
+    uniqueValue: String(form.uniqueValue ?? '').trim(),
+    actors,
+    resources,
+    components,
+    graph: { vertices: [], edges: [] },
+    conservation: splitList(form.conservation ?? '').map((line) => {
+      const [path, assertion] = line.split('|')
+      return { path: String(path ?? '').trim(), assertion: String(assertion ?? '').trim() }
+    }),
+    concurrency: splitList(form.concurrency ?? '').map((line) => {
+      const [risk, mechanism] = line.split('|')
+      return { risk: String(risk ?? '').trim(), mechanism: String(mechanism ?? '').trim() }
+    }),
+    remedies: [],
+    acceptance: [
+      {
+        id: 'a1',
+        given: String(form.given ?? 'a user has access').trim(),
+        when: String(form.when ?? 'they invoke the unique arm').trim(),
+        then: String(form.then ?? 'the app state changes exactly once').trim(),
+      },
+    ],
+  }
+}
+
+function designReportView(value) {
+  const report = value?.report ?? value ?? {}
+  if (report?.kind === 'error') {
+    return {
+      ok: false,
+      verdict: 'error',
+      error: String(report?.error?.hint ?? report?.error?.message ?? 'the design could not be checked'),
+      checks: [],
+      conflicts: [],
+      owed: [],
+      missing: [],
+    }
+  }
+  const validation = Array.isArray(report?.validation?.checks) ? report.validation.checks : []
+  const reuse = Array.isArray(report?.reuse?.checks) ? report.reuse.checks : []
+  return {
+    ok: report?.ok === true,
+    verdict: report?.verdict ?? (report?.ok ? 'pass' : 'refuse'),
+    error: null,
+    checks: [...validation, ...reuse].filter((check) => check?.status !== 'ok'),
+    conflicts: Array.isArray(report?.reuse?.conflicts) ? report.reuse.conflicts : [],
+    owed: Array.isArray(report?.owed) ? report.owed : [],
+    missing: Array.isArray(report?.reuse?.missing) ? report.reuse.missing : [],
+  }
+}
+
+function DesignComposer() {
+  const initial = {
+    name: 'My dApp',
+    slug: 'my-dapp',
+    summary: 'What this app does in one sentence.',
+    uniqueValue: 'The unique coordination this app owns; commodity behavior is reused.',
+    reuse: 'rcash.account-factory',
+    customId: 'unique',
+    customWhy: 'No registered primitive performs this specific coordination.',
+    arms: 'act',
+    invariants: '',
+    leanStatus: 'owed',
+    actors: 'user:act',
+    resources: 'unique-state:uniqueState',
+    conservation: '',
+    concurrency: '',
+    given: 'a user has access',
+    when: 'they invoke the unique arm',
+    then: 'the app state changes exactly once',
+    project: '',
+  }
+  const [form, setForm] = React.useState(initial)
+  const [report, setReport] = React.useState(null)
+  const [save, setSave] = React.useState({ state: 'idle' })
+  const update = (key, value) => {
+    setForm({ ...form, [key]: value })
+    setReport(null)
+    setSave({ state: 'idle' })
+  }
+  const field = (key) => ({
+    value: form[key] ?? '',
+    onChange: (event) => update(key, event.target.value),
+  })
+  const draft = buildDesignDraft(form)
+  const validate = () => {
+    setReport(null)
+    setSave({ state: 'idle' })
+    fetch('/rhobuilder/api/design-validate', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(draft),
+    })
+      .then((response) => response.json().then((value) => ({ response, value })))
+      .then(({ response, value }) => {
+        if (!response.ok) throw new Error(value?.error ?? `HTTP ${response.status}`)
+        setReport(value)
+      })
+      .catch((error) => setSave({ state: 'error', message: String(error?.message ?? error) }))
+  }
+  const saveDesign = (overwrite = false) => {
+    if (!report?.ok) return
+    setSave({ state: 'saving' })
+    fetch('/rhobuilder/api/design-save', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        design: draft,
+        project: String(form.project ?? '').trim() || undefined,
+        overwrite,
+      }),
+    })
+      .then((response) => response.json().then((value) => ({ response, value })))
+      .then(({ response, value }) => {
+        if (response.status === 409) {
+          setSave({ state: 'exists', path: value?.path ?? '' })
+          return
+        }
+        if (!response.ok || !value?.ok) {
+          throw new Error(value?.error ?? value?.report?.error ?? `HTTP ${response.status}`)
+        }
+        setSave({ state: 'saved', path: value.path })
+      })
+      .catch((error) => setSave({ state: 'error', message: String(error?.message ?? error) }))
+  }
+  const view = report ? designReportView(report) : null
+  return h(
+    Card,
+    {
+      title: 'Design composer',
+      subtitle: 'Draft the unique part, validate it against the reuse gate, and save design.json for continuity.',
+    },
+    h('label', { style: LABEL }, 'App name', h('input', { style: FIELD, ...field('name') })),
+    h('label', { style: LABEL }, 'Slug', h('input', { style: FIELD, ...field('slug') })),
+    h('label', { style: LABEL }, 'Summary', h('input', { style: FIELD, ...field('summary') })),
+    h('label', { style: LABEL }, 'Unique value', h('textarea', { style: FIELD, rows: 2, ...field('uniqueValue') })),
+    h(
+      'label',
+      { style: LABEL },
+      'Reuse primitives (comma separated)',
+      h('input', { style: FIELD, ...field('reuse') }),
+    ),
+    h(
+      'div',
+      { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 } },
+      h('label', { style: LABEL }, 'Unique component id', h('input', { style: FIELD, ...field('customId') })),
+      h('label', { style: LABEL }, 'Arms', h('input', { style: FIELD, ...field('arms') })),
+      h(
+        'label',
+        { style: LABEL },
+        'Lean status',
+        h(
+          'select',
+          { style: FIELD, ...field('leanStatus') },
+          h('option', { value: 'owed' }, 'owed'),
+          h('option', { value: 'proved-model' }, 'proved-model'),
+        ),
+      ),
+    ),
+    h(
+      'label',
+      { style: LABEL },
+      'Why the unique component exists',
+      h('textarea', { style: FIELD, rows: 2, ...field('customWhy') }),
+    ),
+    h('label', { style: LABEL }, 'Actors (id:capability, …)', h('input', { style: FIELD, ...field('actors') })),
+    h(
+      'label',
+      { style: LABEL },
+      'Acceptance: given / when / then',
+      h('input', { style: FIELD, ...field('given') }),
+      h('input', { style: { ...FIELD, marginTop: 6 }, ...field('when') }),
+      h('input', { style: { ...FIELD, marginTop: 6 }, ...field('then') }),
+    ),
+    h(
+      'label',
+      { style: LABEL },
+      'Project folder (optional; blank saves to designs/<slug>.json)',
+      h('input', { style: FIELD, ...field('project') }),
+    ),
+    h(
+      'div',
+      { style: { display: 'flex', gap: 7, flexWrap: 'wrap' } },
+      h('button', { type: 'button', style: BUTTON, onClick: validate }, 'Validate draft'),
+      h(
+        'button',
+        {
+          type: 'button',
+          style: { ...BUTTON, opacity: report?.ok ? 1 : 0.5 },
+          disabled: !report?.ok,
+          onClick: () => saveDesign(false),
+        },
+        'Save design.json',
+      ),
+      h(
+        'button',
+        { type: 'button', style: BUTTON, onClick: () => copyText(JSON.stringify(draft, null, 2)) },
+        'Copy design JSON',
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          style: BUTTON,
+          onClick: () =>
+            copyText(
+              `Review the design at ${save.path || 'designs/<slug>.json'} with rhobuilder-dapp-design and rhobuilder-primitive-reuse. Report reuse/extend/new and owed arms before proposing a scaffold.`,
+            ),
+        },
+        'Copy review prompt',
+      ),
+    ),
+    view &&
+      h(
+        'div',
+        { style: { marginTop: 10 } },
+        h(Badge, { tone: view.ok ? 'ok' : 'fail' }, view.ok ? 'Design valid' : `Design ${view.verdict}`),
+        view.error && h('p', { style: { color: '#b42318' } }, view.error),
+        view.conflicts.map((conflict) =>
+          h(
+            'p',
+            { key: conflict.component, style: { ...MUTED_TEXT, margin: '5px 0 0' } },
+            `Conflict: ${conflict.component} duplicates ${conflict.primitive}. ${conflict.detail}`,
+          ),
+        ),
+        view.missing.length > 0 &&
+          h('p', { style: MUTED_TEXT }, `Unregistered alternatives: ${view.missing.join(', ')}`),
+        view.owed.length > 0 &&
+          h('p', { style: MUTED_TEXT }, `Owed Lean obligations: ${view.owed.join(', ')}`),
+        view.checks.slice(0, 12).map((check) =>
+          h(
+            'p',
+            { key: `${check.id}-${check.status}`, style: { ...MUTED_TEXT, margin: '4px 0 0' } },
+            `${check.status}: ${check.id} — ${check.detail}`,
+          ),
+        ),
+      ),
+    save.state === 'saving' && h('p', { style: MUTED_TEXT }, 'Saving…'),
+    save.state === 'saved' &&
+      h(
+        'p',
+        { style: { ...MUTED_TEXT, marginTop: 8 } },
+        `Saved to ${save.path}. `,
+        h('button', { type: 'button', style: BUTTON, onClick: () => copyText(save.path) }, 'Copy path'),
+      ),
+    save.state === 'exists' &&
+      h(
+        'p',
+        { style: { color: '#b45309', marginTop: 8 } },
+        `${save.path} already exists. `,
+        h(
+          'button',
+          { type: 'button', style: BUTTON, onClick: () => saveDesign(true) },
+          'Overwrite design.json',
+        ),
+      ),
+    save.state === 'error' && h('p', { style: { color: '#b42318' } }, `Design action failed: ${save.message}`),
+  )
 }
 
 function Readiness({ readiness }) {
@@ -416,6 +765,222 @@ function Examples({ examples }) {
   )
 }
 
+function ProjectStatus() {
+  const status = useApi('/rhobuilder/api/project-status', { projects: [] })
+  const rows = Array.isArray(status.value?.projects) ? status.value.projects : []
+  return h(
+    Card,
+    {
+      title: 'Project status',
+      subtitle:
+        'Design, scaffold, tests, model and deployment are separate claims. Not run is not a pass.',
+    },
+    status.error && h('p', { style: { color: '#b42318' } }, status.error),
+    rows.length === 0 &&
+      h('p', { style: MUTED_TEXT }, 'No fixture or saved workspace designs are available.'),
+    h(
+      'div',
+      { style: { display: 'grid', gap: 10, marginTop: 8 } },
+      rows.map((row) =>
+        h(
+          'div',
+          { key: `${row.source}-${row.slug}`, style: { borderTop: `1px solid ${BORDER}`, paddingTop: 9 } },
+          h('strong', null, row.name ?? row.slug),
+          h(
+            'span',
+            { style: { ...MUTED_TEXT, marginLeft: 8 } },
+            `${row.source === 'workspace' ? 'saved draft' : 'fixture'} · ${row.file ?? ''}`,
+          ),
+          h(
+            'div',
+            { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 5 } },
+            (row.badges ?? []).map((badge) =>
+              h(
+                Badge,
+                { key: `${badge.label}-${badge.state}`, tone: statusTone(badge.state) },
+                badge.label,
+              ),
+            ),
+          ),
+          h(
+            'p',
+            { style: { ...MUTED_TEXT, margin: '5px 0 0' } },
+            (row.badges ?? []).map((badge) => `${badge.label}: ${badge.detail}`).join(' · '),
+          ),
+        ),
+      ),
+    ),
+  )
+}
+
+function evidenceView(item) {
+  const value = item?.value ?? {}
+  const apps = []
+  if (value.baseline && typeof value.baseline === 'object') {
+    for (const [name, app] of Object.entries(value.baseline)) {
+      apps.push({
+        name,
+        commit: String(app?.commit ?? '').slice(0, 12),
+        root: app?.root ?? '',
+        status: app?.status ?? 'not_run',
+        steps: app?.steps ?? 0,
+      })
+    }
+  }
+  if (value.app && typeof value.app === 'object') {
+    apps.push({
+      name: value.app.slug ?? value.app.name ?? 'app',
+      commit: String(value.app.commit ?? 'local').slice(0, 12),
+      root: value.app.root ?? '',
+      status: value.app.status ?? 'not_run',
+      steps: value.app.steps ?? 0,
+    })
+  }
+  const suites = Array.isArray(value.suites?.results)
+    ? value.suites.results.map((suite) => ({
+        name: suite?.suite ?? '?',
+        status: suite?.status ?? 'not_run',
+        detail: suite?.detail ?? '',
+      }))
+    : []
+  const checks =
+    value.checks && typeof value.checks === 'object'
+      ? Object.entries(value.checks).map(([name, status]) => ({ name, status: String(status) }))
+      : []
+  const notes = Array.isArray(value.notes) ? value.notes : value.note ? [value.note] : []
+  return {
+    file: item?.file ?? 'evidence',
+    recordedAt: value.recordedAt ?? '',
+    network: value.network ?? value.networkId ?? '',
+    apps,
+    suites,
+    checks,
+    notes,
+  }
+}
+
+function Evidence() {
+  const evidence = useApi('/rhobuilder/api/evidence', { evidence: [] })
+  const rows = Array.isArray(evidence.value?.evidence) ? evidence.value.evidence : []
+  return h(
+    Card,
+    {
+      title: 'Measured evidence',
+      subtitle: 'What actually ran, with machine states translated. Evidence is not authority.',
+    },
+    evidence.error && h('p', { style: { color: '#b42318' } }, evidence.error),
+    rows.length === 0 && h('p', { style: MUTED_TEXT }, 'No evidence documents are installed.'),
+    h(
+      'div',
+      { style: { display: 'grid', gap: 14, marginTop: 8 } },
+      rows.map((item) => {
+        const view = evidenceView(item)
+        return h(
+          'div',
+          { key: view.file, style: { borderTop: `1px solid ${BORDER}`, paddingTop: 9 } },
+          h('strong', null, view.file),
+          h(
+            'p',
+            { style: { ...MUTED_TEXT, margin: '3px 0 6px' } },
+            `${view.network || 'unknown network'} · recorded ${view.recordedAt || 'unknown'}`,
+          ),
+          h(
+            'div',
+            { style: { display: 'grid', gap: 5 } },
+            view.apps.map((app) =>
+              h(
+                'div',
+                { key: app.name, style: { display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' } },
+                h('strong', null, app.name),
+                h(Badge, { tone: statusTone(app.status) }, app.status),
+                h('span', { style: MUTED_TEXT }, `${app.steps} step(s)`),
+                app.commit && h('span', { style: MUTED_TEXT }, `commit ${app.commit}`),
+                app.root &&
+                  h(
+                    'button',
+                    { type: 'button', style: BUTTON, onClick: () => copyText(app.root) },
+                    `Copy ${app.root.slice(0, 18)}…`,
+                  ),
+              ),
+            ),
+          ),
+          view.suites.length > 0 &&
+            h(
+              'p',
+              { style: { ...MUTED_TEXT, margin: '7px 0 0' } },
+              `Suites: ${view.suites
+                .map((suite) => `${suite.name} ${suite.status}`)
+                .join(' · ')}`,
+            ),
+          view.checks.length > 0 &&
+            h(
+              'p',
+              { style: { ...MUTED_TEXT, margin: '7px 0 0' } },
+              `Checks: ${view.checks.map((check) => `${check.name} ${check.status}`).join(' · ')}`,
+            ),
+          view.notes.map((note, index) =>
+            h('p', { key: index, style: { ...MUTED_TEXT, margin: '5px 0 0' } }, note),
+          ),
+          h(
+            'details',
+            { style: { marginTop: 8 } },
+            h('summary', { style: MUTED_TEXT }, 'Raw JSON'),
+            h(
+              'pre',
+              { style: CODE },
+              JSON.stringify(item.value, null, 2).slice(0, 100_000),
+            ),
+          ),
+        )
+      }),
+    ),
+    h(
+      'p',
+      { style: { ...MUTED_TEXT, marginTop: 10 } },
+      'Evidence is a record, not authority. The live check is baseline verify --deep, which re-resolves every root.',
+    ),
+  )
+}
+
+function Preflight() {
+  const preflight = useApi('/rhobuilder/api/preflight?network=testnet', { blockers: [] })
+  const blockers = Array.isArray(preflight.value?.blockers) ? preflight.value.blockers : []
+  return h(
+    Card,
+    {
+      title: 'Testnet campaign',
+      subtitle: 'Read-only preflight. Live execution needs a separate explicit approval.',
+    },
+    preflight.error && h('p', { style: { color: '#b42318' } }, preflight.error),
+    h(
+      'div',
+      { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 } },
+      h(Badge, { tone: blockers.length ? 'warn' : 'ok' }, `${blockers.length} blocker(s)`),
+      h(Badge, { tone: 'neutral' }, 'Live: not run'),
+    ),
+    blockers.length === 0 &&
+      h('p', { style: MUTED_TEXT }, 'No blockers are recorded; live execution still needs approval.'),
+    h(
+      'div',
+      { style: { display: 'grid', gap: 7, marginTop: 8 } },
+      blockers.map((blocker) =>
+        h(
+          'div',
+          { key: `${blocker.kind}-${blocker.detail}`, style: { borderTop: `1px solid ${BORDER}`, paddingTop: 7 } },
+          h('strong', null, blocker.kind ?? 'blocker'),
+          h('p', { style: { ...MUTED_TEXT, margin: '2px 0 0' } }, blocker.detail ?? ''),
+          blocker.hint && h('p', { style: { ...MUTED_TEXT, margin: '2px 0 0' } }, blocker.hint),
+        ),
+      ),
+    ),
+    h(
+      'p',
+      { style: { ...MUTED_TEXT, marginTop: 9 } },
+      'Approval checkpoints: campaign approval, pin resolution, faucet spend approval, --allow-live with the identity/plan --confirm token, and manual partial-root reconciliation. This UI never executes any of them.',
+    ),
+  )
+}
+
 function CliHandoff() {
   return h(
     Card,
@@ -423,7 +988,15 @@ function CliHandoff() {
       title: 'CLI handoff',
       subtitle: 'Signed, funded and live actions stay in the terminal. The UI never holds a key.',
     },
-    h('p', { style: { margin: '8px 0 0' } }, 'Create and fund a devnet ops key:'),
+    h('p', { style: { margin: '8px 0 0' } }, 'Start the existing local devnet and check it:'),
+    h(
+      'pre',
+      { style: CODE },
+      'python3 tools/devnet.py status --json\n' +
+        'python3 tools/devnet.py start --json\n' +
+        'python3 tools/devnet.py onboard --json   # dry run; --execute is the approved step',
+    ),
+    h('p', { style: { margin: '10px 0 0' } }, 'Create and fund a devnet ops key:'),
     h(
       'pre',
       { style: CODE },
@@ -461,7 +1034,7 @@ function Dashboard() {
       'div',
       { style: { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 } },
       h(Wordmark, { size: 34 }),
-      h(Badge, { tone: 'ok' }, 'Read-only studio'),
+      h(Badge, { tone: 'ok' }, 'Design save only · no signing'),
     ),
     h(
       'p',
@@ -489,7 +1062,11 @@ function Dashboard() {
         'The registry is curated, not auto-discovered. A rho:id lookup proves resolution, not code identity.',
       ),
     ),
+    h(DesignComposer),
     h(Examples, { examples }),
+    h(ProjectStatus),
+    h(Evidence),
+    h(Preflight),
     h(
       Card,
       { title: 'Truthful status' },
@@ -534,6 +1111,7 @@ window.__ModuleLoader__.load({
     React = react && react.createElement ? react : react.default
     return {
       inject: ['slots'],
+      internals: { buildDesignDraft, designReportView, evidenceView },
       apply(ctx) {
         const register = (slot, meta, component) =>
           ctx.slots.inject(slot, () => ctx.slots.register(meta, component))

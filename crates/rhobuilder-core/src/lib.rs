@@ -7,6 +7,7 @@
 pub mod contracts;
 pub mod design;
 pub mod formal;
+pub mod project;
 pub mod scaffold;
 
 /// The product name used in JSON envelopes and docs.

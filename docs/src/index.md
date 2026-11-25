@@ -15,13 +15,13 @@ nine behavioural suites. No signed public-testnet deploy has been executed.
 | Area | Status |
 |---|---|
 | Repo + DSH plugin/skills/launcher | implemented; plugin tools map to real CLI commands; no live model session |
-| Rhobuilder studio UI | branded shell + dashboard; readiness, networks, primitives, examples and CLI handoff; read-only behind the DSH token fence |
-| Non-technical fitness | adversarial review committed; readiness and release-package P0s addressed, design wizard and devnet provisioning deferred |
+| Rhobuilder studio UI | branded shell + dashboard; design composer with validated `design.json` save, project status, evidence, testnet preflight and CLI handoff behind the DSH token fence |
+| Non-technical fitness | adversarial review committed; composer, devnet lifecycle, prose errors, project status and evidence renderer address the deferred items |
 | Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
 | Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` is hand-authored; other designs get generic root/resource/adapter contracts and an install manifest; canonical gates are vendored and hash-checked |
 | Lean `RhoApp` + obligations | shared RhoApp, hash check and per-arm obligation gate implemented; `bookable-service` has a shallow `proved-model`; generic scaffolds remain `owed` |
 | Devnet end-to-end | P5 measured: five roots verified, app root verified, nine suites pass |
-| Public-testnet baseline | P6 code-complete: plan/dry-run/executor/keys/Root verification; live gated; r-cash account-factory blocker |
+| Public-testnet baseline | P6 code-complete: preflight/plan/dry-run/executor/keys/Root verification; live gated; r-cash account-factory blocker |
 | MCP server | read-only/plan server with both protocol lanes |
 
 ## Quick start
@@ -29,7 +29,10 @@ nine behavioural suites. No signed public-testnet deploy has been executed.
 ```sh
 cargo build -p rhobuilder-cli
 ./target/debug/rhobuilder version --json
+./target/debug/rhobuilder --json project status --project <dir>
+./target/debug/rhobuilder --json baseline preflight --network testnet
 
+python3 tools/devnet.py status --json
 python3 tools/launch_dsh.py --check --json
 python3 tools/launch_dsh.py --print-config headless
 ```

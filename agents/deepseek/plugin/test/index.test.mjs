@@ -11,7 +11,7 @@ function harness() {
   }
 }
 
-test('apply registers the six rhobuilder tools', () => {
+test('apply registers the seven rhobuilder tools', () => {
   const { ctx, tools } = harness()
   apply(ctx, { command: '/usr/bin/rhobuilder' })
   assert.deepEqual([...tools.keys()], [
@@ -19,6 +19,7 @@ test('apply registers the six rhobuilder tools', () => {
     'rhobuilder_design',
     'rhobuilder_scaffold',
     'rhobuilder_check',
+    'rhobuilder_status',
     'rhobuilder_plan',
     'rhobuilder_chain',
   ])
@@ -109,6 +110,44 @@ test('the check renderer reports failures', () => {
   assert.match(text, /check static: failed/)
   assert.match(text, /reuse: fail/)
   assert.match(text, /1 gate\(s\) failed/)
+})
+
+test('the check renderer calls out not-run and owed results', () => {
+  const { ctx, tools } = harness()
+  apply(ctx, { command: '/usr/bin/rhobuilder' })
+  const blocks = tools.get('rhobuilder_check').output.render(
+    {},
+    {
+      ok: false,
+      profile: 'full',
+      gates: [{ name: 'unit-all', status: 'not_run' }],
+      owed: ['panel-selection'],
+    },
+  )
+  const text = blocks.map((block) => block.text).join('\n')
+  assert.match(text, /not run is not a pass/)
+  assert.match(text, /owed: panel-selection/)
+})
+
+test('the status renderer shows badges and owed arms', () => {
+  const { ctx, tools } = harness()
+  apply(ctx, { command: '/usr/bin/rhobuilder' })
+  const blocks = tools.get('rhobuilder_status').output.render(
+    {},
+    {
+      project: { slug: 'demo' },
+      design: { ok: true },
+      badges: [
+        { label: 'Scaffold', state: 'ok', detail: 'generated' },
+        { label: 'Owed', state: 'warn', detail: 'panel' },
+      ],
+      owed: ['panel'],
+    },
+  )
+  const text = blocks.map((block) => block.text).join('\n')
+  assert.match(text, /project demo: design ok/)
+  assert.match(text, /Scaffold: ok/)
+  assert.match(text, /owed: panel/)
 })
 
 test('renderers are total on unexpected values', () => {

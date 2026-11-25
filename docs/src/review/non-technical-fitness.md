@@ -23,9 +23,9 @@ traceability row to the UI or CLI change that addresses it.
 |---|---|---|---|
 | P0-1 | Preflight cannot fail on missing prerequisites; API key, npx DSH and cargo fallback are warnings, and Rust/Docker/Lean/mdBook/devnet are not probed. | `tools/launch_dsh.py:666-675`, `:764`, `:655-663` | **Fixed in this pass**: hard `setup` verdict + UI readiness panel |
 | P0-2 | The release artifact is a bare binary plus docs; it cannot scaffold, check or plan because `registry/` and `templates/` are external. | `.github/workflows/release.yml:16-19`, `crates/rhobuilder-cli/src/main.rs:29-34` | **Fixed in this pass**: complete release tarball + extraction self-test |
-| P0-3 | No design-authoring surface; `design.json` is hand-written or model-written and only validated after the fact. | `agents/deepseek/plugin/index.js:156-175`, `fixtures/designs/booking.json` | **Surfaced**: guided chat interview + design-check results; a visual wizard is deferred |
+| P0-3 | No design-authoring surface; `design.json` is hand-written or model-written and only validated after the fact. | `agents/deepseek/plugin/index.js:156-175`, `fixtures/designs/booking.json` | **Fixed**: dashboard composer validates in memory and saves a validated `design.json` for continuity |
 | P0-4 | First launch is stock “DeepSeek Harness”: no rhobuilder title, onboarding, dashboard or quick actions. | generated `.dsh/patches/rhobuilder-web.yml`; shipped web profile | **Fixed in this pass**: branded UI package + dashboard |
-| P0-5 | Devnet bring-up and funding are developer-machine work (Docker container, validator key, env, keys). | `crates/rhobuilder-chain/src/funding.rs:117-148`, `crates/rhobuilder-cli/src/main.rs:878-881` | **Surfaced**: readiness and copyable setup commands; automated provisioning is out of scope |
+| P0-5 | Devnet bring-up and funding are developer-machine work (Docker container, validator key, env, keys). | `crates/rhobuilder-chain/src/funding.rs:117-148`, `crates/rhobuilder-cli/src/main.rs:878-881` | **Fixed**: `tools/devnet.py status/start/wait/onboard`; onboarding is explicit `--execute` and devnet-only. Creating a container from scratch remains external |
 
 ## P1 — major friction
 
@@ -33,7 +33,7 @@ traceability row to the UI or CLI change that addresses it.
 |---|---|---|---|
 | P1-1 | Curated skills omit the rho-calculus, CoC and Lean 4 skills that the build procedure tells the model to read. | `agents/deepseek/harness.toml:22-30`, `skills/rhobuilder-build.md:40-41` | **Fixed**: add the three skills to the curated set |
 | P1-2 | Exit code 2 is overloaded across refusal, usage, identity and `not_run`. | `crates/rhobuilder-cli/src/main.rs:3-4`, `:2141`, `:2758-2763` | **Fixed**: error envelopes carry `status` and `hint`; exit codes stay compatible |
-| P1-3 | Errors are developer jargon rather than actionable copy. | e.g. `main.rs:947`, `:1036-1040`, `:697-699` | **Surfaced**: every CLI error now has a plain `hint`; the dashboard/readiness uses it. Full chat prose mapping is deferred |
+| P1-3 | Errors are developer jargon rather than actionable copy. | e.g. `main.rs:947`, `:1036-1040`, `:697-699` | **Fixed**: every emitted kind has a status and hint, and bridge errors lead with per-kind prose before the detail |
 | P1-4 | First build may silently clone `r-cash` and need network; no preflight. | `Cargo.toml` `rcash-sdk` git pin; `launch_dsh.py:74-77` | **Fixed**: readiness reports the source-build/network path |
 | P1-5 | Local absolute-home defaults leak into docs and Make targets. | `README.md:44`, `Makefile:5` | **Fixed**: remove machine-local defaults; package check rejects them |
 | P1-6 | Key-path containment is checked at keygen but not every key load. | `main.rs:782-785` vs `:840-846`, `:1116-1142`, `:1836-1886`, `:2597-2602` | **Fixed for live networks**: every load calls `require_under`; disposable devnet keys may live in the installation |
@@ -42,8 +42,8 @@ traceability row to the UI or CLI change that addresses it.
 
 | ID | Finding | Disposition |
 |---|---|---|
-| P2-1 | Generic scaffolds look finished; `owed` arms are not visible. | **Surfaced** in the dashboard status; per-project badges are deferred |
-| P2-2 | Evidence JSON contains `not_run`/`candidate` machine states that non-technical users misread. | **Surfaced**: the dashboard exposes evidence and uses plain status labels; a dedicated evidence renderer is deferred |
+| P2-1 | Generic scaffolds look finished; `owed` arms are not visible. | **Fixed**: `rhobuilder project status` and the dashboard Project status card render `Scaffold`, `Implemented`, `Tested`, `Proved model`, `Owed`, `Not run` and `Refused` |
+| P2-2 | Evidence JSON contains `not_run`/`candidate` machine states that non-technical users misread. | **Fixed**: the dashboard renders measured evidence with plain statements and a raw-JSON disclosure |
 | P2-3 | Scaffold `confirm:true` is model-internal, not a user approval. | **Surfaced**: the dashboard shows a read-only plan/file count and the build skill requires explicit confirmation; applying remains a separate chat action |
 | P2-4 | Skill jargon has no user-facing glossary. | **Fixed**: landing hero + glossary below |
 
@@ -52,7 +52,7 @@ traceability row to the UI or CLI change that addresses it.
 | Step | Current affordance | Reality |
 |---|---|---|
 | Probe | `rhobuilder_chain` tool | read-only; works |
-| Design | validate/report only | chat/hand-written `design.json`; wizard deferred |
+| Design | composer + validate/save | dashboard composer validates in memory and saves `design.json`; refused drafts write nothing |
 | Reuse | design report | refuses duplicate primitives; JSON report |
 | Scaffold | plan/apply tool | writes once; UI requires explicit apply |
 | Implement | none | agent/editor work |
@@ -60,7 +60,7 @@ traceability row to the UI or CLI change that addresses it.
 | Test | check full | needs a healthy devnet; otherwise `not_run` |
 | Deploy plan | plan tool | read-only; refuses missing/duplicate/mainnet |
 | Deploy/baseline execute | CLI only | signed, gated, key-bearing |
-| Testnet baseline | plan/verify read-only | blocked on r-cash account-factory; execution CLI-only |
+| Testnet baseline | preflight/plan/verify read-only | `baseline preflight` names every blocker; execution remains CLI-only and gated |
 
 ## Plain-language glossary
 
@@ -83,9 +83,9 @@ traceability row to the UI or CLI change that addresses it.
 
 | Finding | UI/CLI surface |
 |---|---|
-| P0-1, P0-5 | Dashboard Readiness panel; `launch_dsh --check` setup verdict |
+| P0-1, P0-5 | Dashboard Readiness panel; `launch_dsh --check` setup verdict; `tools/devnet.py status/start/wait/onboard` |
 | P0-2 | Complete release tarball and launch wrapper |
-| P0-3 | Hero/start prompts and design-check status; wizard deferred |
+| P0-3 | Dashboard composer, `design validate --stdin`, contained `design-save`, design-check status |
 | P0-4 | Title, favicon, sidebar wordmark, hero card, Rhobuilder dashboard |
 | P1-1 | Curated skill list in `harness.toml` |
 | P1-2, P1-3 | Status labels and humanized error copy |
@@ -96,5 +96,6 @@ traceability row to the UI or CLI change that addresses it.
 
 ## Boundary
 
-The UI may read, plan, validate and start conversations. It must not sign, fund, hold keys
-or execute deploys. Those operations remain CLI-only with explicit gates.
+The UI may read, plan, validate, start conversations and save a validated `design.json`.
+It must not write code, apply a scaffold, sign, fund, hold keys or execute deploys. Those
+operations remain CLI-only with explicit gates.

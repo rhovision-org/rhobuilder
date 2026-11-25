@@ -18,13 +18,13 @@ no signed testnet deploy has been executed. Mainnet remains refused.
 | Area | Status |
 |---|---|
 | Repo + DSH plugin/skills/launcher | implemented; DSH 0.2.2-rc.5 `--dump-config` validates web and headless overlays; no live model session (`DEEPSEEK_API_KEY` unset) |
-| Rhobuilder studio UI | branded title/favicon/wordmark/hero + Rhobuilder dashboard; readiness, networks, primitives, examples, CLI handoff; read-only behind the DSH token fence |
-| Non-technical fitness | adversarial review committed at `docs/src/review/non-technical-fitness.md`; readiness and package P0s addressed, design-wizard/devnet provisioning deferred |
+| Rhobuilder studio UI | branded title/favicon/wordmark/hero + dashboard; design composer with validated `design.json` save, project-status badges, evidence renderer, testnet preflight and devnet handoff behind the DSH token fence |
+| Non-technical fitness | adversarial review committed at `docs/src/review/non-technical-fitness.md`; the deferred items are addressed by the composer, devnet lifecycle, prose errors, project status and evidence renderer |
 | Registry + network identity probe | implemented; pinned-commit drift clean; devnet roots verified |
 | Design gate + scaffolder | design gate and full/headless scaffold implemented; `bookable-service` is hand-authored; other designs get generic root/resource/adapter contracts and a `.rhobuilder-contracts.json` install manifest; canonical gates are vendored and hash-checked |
 | Lean `RhoApp` + obligations | shared RhoApp, vendoring, hash check and per-arm obligation gate implemented; `bookable-service` has a shallow `proved-model` (`voteOnce`, provider exclusion, settlement conservation); generic scaffolds remain `owed` |
 | Devnet end-to-end | P5 measured: r-cash core, r-gen, r-share, r-sure and r-print verified; app root verified; nine suites pass — see `docs/src/evidence/p5-devnet.json` |
-| Public-testnet baseline | P6 code-complete: all-five plan/dry-run, executor, keys, funding and Root verification implemented; live campaign gated and not run; r-cash account-factory is the shared blocker |
+| Public-testnet baseline | P6 code-complete: all-five plan/dry-run, executor, keys, funding and Root verification implemented; `baseline preflight` reports pins/roots/funding blockers; live campaign gated and not run; r-cash account-factory is the shared blocker |
 | MCP server | read-only/plan server implemented with both protocol lanes |
 
 ## What it targets
@@ -46,8 +46,15 @@ cargo build -p rhobuilder-cli
 ./target/debug/rhobuilder --json registry drift --source-root "$HOME" --strict
 
 # all-five plans: read-only; testnet execution stays gated
+./target/debug/rhobuilder --json baseline preflight --network testnet
 ./target/debug/rhobuilder --json baseline plan --network testnet
 ./target/debug/rhobuilder --json baseline run  --network testnet --dry-run
+
+# read-only project status and safe devnet lifecycle
+./target/debug/rhobuilder --json project status --project <dir>
+python3 tools/devnet.py status --json
+python3 tools/devnet.py start --json
+python3 tools/devnet.py onboard --json          # dry run; --execute is devnet-only
 
 # local devnet install (after keygen/fund), then a generated app
 ./target/debug/rhobuilder --json baseline run --network devnet \

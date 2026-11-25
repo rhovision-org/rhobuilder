@@ -53,8 +53,12 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
     }
     case 'design': {
       const action = requireEnum(args, 'action', ['validate', 'report'])
-      const path = requireString(args, 'path')
-      argv = [...base, 'design', action, '--path', path]
+      if (args.stdin === true) {
+        argv = [...base, 'design', action, '--stdin']
+      } else {
+        const path = requireString(args, 'path')
+        argv = [...base, 'design', action, '--path', path]
+      }
       break
     }
     case 'scaffold': {
@@ -66,6 +70,12 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       }
       argv = [...base, 'new', target, '--design', design, '--template', template]
       argv.push(args.confirm === true ? '--apply' : '--plan')
+      break
+    }
+    case 'project': {
+      const action = requireEnum(args, 'action', ['status'])
+      const project = requireString(args, 'project')
+      argv = [...base, 'project', action, '--project', project]
       break
     }
     case 'check': {
@@ -84,9 +94,10 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       break
     }
     case 'baseline': {
-      const action = requireEnum(args, 'action', ['plan', 'verify'])
+      const action = requireEnum(args, 'action', ['plan', 'verify', 'preflight'])
       const network = requireString(args, 'network')
       argv = [...base, 'baseline', action, '--network', network]
+      if (action === 'preflight' && args.strict === true) argv.push('--strict')
       break
     }
     case 'formal': {
@@ -114,7 +125,63 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
   }
 }
 
-export function parseBridgeStdout(stdout) {
+const PROSE = {
+  Usage: 'I could not use those arguments.',
+  OutsideWorkspace: 'That path is outside the workspace I am allowed to use.',
+  IdentityMismatch: 'The node is not the network this plan expects.',
+  NetworkGated: 'The node is not the network this profile expects.',
+  ProfileError: 'The network profile could not be read.',
+  NoEndpoint: 'The network profile has no endpoint to probe.',
+  LiveExecutionGated: 'This is a live action and needs explicit approval, a funded key and the confirmation token.',
+  ConfirmationMismatch: 'The confirmation token does not match this network or plan.',
+  UnsafeKey: 'I refused to use that key; use a mode-0600 key file and never paste a key into chat.',
+  UnsafeKeyPath: 'I refused a key path outside the allowed location.',
+  MissingKey: 'The signing key is missing; generate one with the CLI first.',
+  Keystore: 'The keystore could not be read or is unsafe.',
+  MissingDependency: 'A shared primitive this app reuses is missing on the target network.',
+  UnresolvedPlaceholder: 'A generated contract still contains an unresolved placeholder.',
+  InstallError: 'The install plan could not be built.',
+  InstallFailed: 'The install stopped before it completed.',
+  PartialRoot: 'An existing root is incomplete. Stop and reconcile it; do not redeploy a commodity primitive.',
+  Verification: 'Root verification did not prove every required key.',
+  NodeUnavailable: 'The chain node is unreachable or unhealthy; this is not a pass.',
+  BadResponse: 'The node returned an unexpected response.',
+  Http: 'The node request failed.',
+  CallFailed: 'The chain call failed.',
+  FundingError: 'Funding did not complete; the node may be unhealthy or rate-limited.',
+  GateFailure: 'A project gate failed.',
+  GateError: 'A project gate could not run.',
+  FormalError: 'The formal check could not complete.',
+  DesignError: 'The design input is invalid.',
+  RegistryError: 'The registry input is invalid or missing.',
+  InstallPlanError: 'The install plan is invalid.',
+  Io: 'A file could not be read or written.',
+  Json: 'The input is not valid JSON.',
+  ScaffoldError: 'The scaffold input is invalid.',
+  ChainError: 'The chain operation failed.',
+  PlanError: 'The deploy plan is invalid.',
+  AppPlanError: 'The app deploy plan is invalid.',
+  UnknownPrimitive: 'The design names a primitive that is not in the registry.',
+  UnknownVertex: 'The design graph names a vertex that does not exist.',
+}
+
+const PROSE_BY_STATUS = {
+  usage: 'I could not use those arguments.',
+  identity_mismatch: 'The node is not the network this plan expects.',
+  gated: 'This live action needs explicit approval, a funded key and the confirmation token.',
+  unsafe_key: 'I refused to use that key; use a mode-0600 key file and never paste a key into chat.',
+  missing_dependency: 'A shared primitive this app reuses is missing on the target network.',
+  partial_root: 'An existing root is incomplete. Stop and reconcile it; do not redeploy a commodity primitive.',
+  node_unavailable: 'The chain node is unreachable or unhealthy; this is not a pass.',
+  gate_failure: 'A project gate failed.',
+  setup: 'The local design, registry, project or install input needs fixing.',
+}
+
+function proseFor(type, status) {
+  return PROSE[type] ?? PROSE_BY_STATUS[status] ?? 'The command failed.'
+}
+
+export function parseBridgeStdout(stdout, { acceptRefusal = false } = {}) {
   const text = String(stdout ?? '').trim()
   if (!text) throw new Error('rhobuilder bridge wrote no JSON')
   let document
@@ -124,14 +191,18 @@ export function parseBridgeStdout(stdout) {
     throw new Error(`rhobuilder bridge wrote non-JSON: ${text.slice(-500)}`)
   }
   if (document && (document.kind === 'error' || document.ok === false)) {
+    if (acceptRefusal) return document
     const type = document.error?.type ?? 'Error'
     const detail = document.error?.message ?? 'unknown refusal'
     const hint = document.error?.hint
-    const error = new Error(`${type}: ${detail}${hint ? ` — ${hint}` : ''}`)
+    const status = document.error?.status
+    const prose = proseFor(type, status)
+    const error = new Error(`${prose} ${type}: ${detail}${hint ? ` — ${hint}` : ''}`)
     error.type = type
-    error.status = document.error?.status
+    error.status = status
     error.field = document.error?.field
     error.hint = hint
+    error.prose = prose
     throw error
   }
   return document
@@ -139,19 +210,31 @@ export function parseBridgeStdout(stdout) {
 
 export function runProcess(
   invocation,
-  { timeoutMs = DEFAULT_TIMEOUT_MS, maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES, signal } = {},
+  {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
+    signal,
+    acceptRefusal = false,
+  } = {},
 ) {
   return new Promise((resolve, reject) => {
     let child
+    const hasInput = invocation.input !== undefined && invocation.input !== null
     try {
       child = spawn(invocation.command, invocation.args, {
         cwd: invocation.cwd,
         env: invocation.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       })
     } catch (error) {
       reject(error)
       return
+    }
+    if (hasInput) {
+      // The child may exit before reading the whole draft. EPIPE is not a product
+      // failure; the exit status and stdout still decide the result.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(String(invocation.input))
     }
     let stdout = ''
     let stderr = ''
@@ -210,7 +293,7 @@ export function runProcess(
           return
         }
         try {
-          resolve(parseBridgeStdout(stdout))
+          resolve(parseBridgeStdout(stdout, { acceptRefusal }))
         } catch (error) {
           reject(error)
         }
@@ -221,10 +304,12 @@ export function runProcess(
 
 export async function runBridge(tool, args, cfg, exec = {}) {
   const invocation = buildInvocation(tool, args, cfg)
+  if (exec.input !== undefined) invocation.input = exec.input
   return runProcess(invocation, {
     timeoutMs: cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxOutputBytes: cfg.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
     signal: exec.signal,
+    acceptRefusal: exec.acceptRefusal === true,
   })
 }
 

@@ -28,6 +28,15 @@
   default; add `--port`, `--no-open` and `--no-ui`.
 - Add the complete release tarball with registry/templates/UI/launcher and an extraction
   self-test; add CLI registry/template env defaults and live key-path containment.
+- Add the studio design composer with in-memory `design validate --stdin` and a contained,
+  validated `design.json` save for continuity.
+- Add `project status` badges, the dashboard Project status card, the measured-evidence
+  renderer and the read-only testnet preflight card.
+- Add `tools/devnet.py status/start/wait/onboard`; onboarding is explicit, devnet-only and
+  never creates/resets/removes a container or volume.
+- Add `baseline preflight` pins/roots/funding/blocker reporting and the campaign evidence
+  template; no live testnet execution.
+- Add complete CLI error hints and per-kind chat prose.
 - Update docs/status to the measured P5 and gated P6 state.
 
 ## 0.1.0

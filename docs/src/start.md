@@ -29,7 +29,10 @@ primitives, examples and CLI handoff.
 
 ## 3. Start a design
 
-Use a starter, or ask:
+Use a starter, or use the dashboard **Design composer**. The composer validates the draft
+against the reuse gate and saves it as `design.json` for continuity (blank project:
+`designs/<slug>.json`; existing project: its root, with overwrite confirmation). You can
+also ask:
 
 > Interview me and create a design.json for a bookable service.
 
@@ -40,9 +43,25 @@ The assistant designs only the unique part, reuses r-cash/r-sure/r-gen/r-share/r
 
 The UI can plan a scaffold and send an explicit apply prompt after you approve the file
 count. `make check` is static; `make formal-check` proves the shallow Lean model; devnet
-behavioural suites require a healthy devnet and otherwise report `not_run`.
+behavioural suites require a healthy devnet and otherwise report `not_run`. The dashboard
+shows `Scaffold`, `Implemented`, `Tested`, `Proved model`, `Owed` and `Not run` from the
+project files and recorded evidence; a saved design appears as `Draft` until it is
+scaffolded.
 
-## 5. Sign and deploy
+## 5. Devnet, sign and deploy
+
+The local devnet lifecycle is CLI-only:
+
+```sh
+python3 tools/devnet.py status --json
+python3 tools/devnet.py start --json
+python3 tools/devnet.py onboard --json            # dry run
+python3 tools/devnet.py onboard --json --execute  # devnet only
+```
+
+`start` only starts the existing `devnet-bootstrap`; it never creates, resets or removes a
+container or volume. `onboard` reuses keygen, funding, the baseline install and deep verify
+under explicit `--execute` and stops on the first failure.
 
 Signing, funding, deploy execute, testnet baseline run and deep verify are deliberately
 CLI-only. Use the copyable commands in the dashboard. Mainnet is refused.

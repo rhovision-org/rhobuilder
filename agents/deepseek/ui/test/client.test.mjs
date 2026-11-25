@@ -33,7 +33,9 @@ function load() {
       },
     },
   }
-  module.factory(() => React).apply(ctx)
+  const applied = module.factory(() => React)
+  applied.apply(ctx)
+  slots.internals = applied.internals
   return slots
 }
 
@@ -113,13 +115,85 @@ test('the starters fill and submit the composer', () => {
   assert.equal(actions.submits, 1)
 })
 
-test('the dashboard exposes readiness, primitive and CLI sections', () => {
+test('the dashboard exposes readiness, composer, status and CLI sections', () => {
   const dashboard = load().get('main').component
   const words = text(expand(dashboard({})))
-  assert.match(words, /Read-only studio/)
+  assert.match(words, /Design save only/)
   assert.match(words, /Readiness/)
   assert.match(words, /Primitive graph/)
+  assert.match(words, /Design composer/)
+  assert.match(words, /Save design\.json/)
+  assert.match(words, /Project status/)
+  assert.match(words, /Measured evidence/)
+  assert.match(words, /Testnet campaign/)
   assert.match(words, /CLI handoff/)
   assert.match(words, /Signed, funded and live actions stay in the terminal/)
   assert.match(words, /Truthful status/)
+})
+
+test('the composer builds a valid design draft', () => {
+  const { buildDesignDraft } = load().internals
+  const design = buildDesignDraft({
+    name: 'Bookable Service',
+    slug: '',
+    summary: 'Book a service.',
+    uniqueValue: 'A unique panel.',
+    reuse: 'rcash.account-factory',
+    customId: 'panel',
+    customWhy: 'No registered primitive selects a panel.',
+    arms: 'select, veredict',
+    leanStatus: 'proved-model',
+    given: 'a guest',
+    when: 'they book',
+    then: 'the slot is held once',
+  })
+  assert.equal(design.schema, 'rhobuilder.design/v1')
+  assert.equal(design.app.slug, 'bookable-service')
+  assert.equal(design.app.networks.join(','), 'devnet,testnet')
+  assert.ok(design.components.some((component) => component.primitive === 'rcash.account-factory'))
+  const custom = design.components.find((component) => component.id === 'panel')
+  assert.equal(custom.tag, 'new')
+  assert.equal(custom.leanStatus, 'proved-model')
+  assert.equal(custom.arms.join(','), 'select,veredict')
+  assert.equal(design.acceptance[0].then, 'the slot is held once')
+})
+
+test('the design report view surfaces conflicts and owed arms', () => {
+  const { designReportView } = load().internals
+  const view = designReportView({
+    ok: false,
+    verdict: 'refuse',
+    validation: { checks: [] },
+    reuse: {
+      checks: [],
+      conflicts: [{ component: 'escrow', primitive: 'rsure.policy', detail: 'already registered' }],
+      missing: [],
+    },
+    owed: ['panel'],
+  })
+  assert.equal(view.ok, false)
+  assert.equal(view.verdict, 'refuse')
+  assert.equal(view.conflicts.length, 1)
+  assert.deepEqual(view.owed, ['panel'])
+})
+
+test('the evidence view translates the p5 record', () => {
+  const { evidenceView } = load().internals
+  const view = evidenceView({
+    file: 'p5-devnet.json',
+    value: {
+      recordedAt: '2026-11-25T17:42:55Z',
+      network: 'devnet',
+      baseline: {
+        'r-cash': { commit: '49b441d', root: 'rho:id:abc', status: 'verified', steps: 15 },
+      },
+      app: { slug: 'bookable-service', root: 'rho:id:app', status: 'verified', steps: 8 },
+      suites: { results: [{ suite: 'root', status: 'pass' }] },
+      notes: ['zero duplicate deploys'],
+    },
+  })
+  assert.equal(view.network, 'devnet')
+  assert.equal(view.apps.length, 2)
+  assert.equal(view.suites[0].name, 'root')
+  assert.equal(view.notes[0], 'zero duplicate deploys')
 })

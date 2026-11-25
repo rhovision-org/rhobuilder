@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use rcash_sdk::rcash_chain::keystore::DevnetKeys;
 use rcash_sdk::rcash_chain::rho_expr::RhoValue;
 use rcash_sdk::Client as ChainClient;
@@ -81,6 +81,11 @@ enum Command {
         #[command(subcommand)]
         command: DeployCommand,
     },
+    /// Read-only project status: scaffold, tests, model and deployments.
+    Project {
+        #[command(subcommand)]
+        command: ProjectCommand,
+    },
     /// Run the generated project's gates through its Makefile.
     Check {
         #[arg(long)]
@@ -147,21 +152,40 @@ enum ChainCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum ProjectCommand {
+    /// Report the project's design, scaffold, test, model and deployment status.
+    Status {
+        #[arg(long)]
+        project: PathBuf,
+    },
+}
+
+#[derive(Debug, Args)]
+struct DesignSourceArgs {
+    /// Read the design from a file.
+    #[arg(long, required_unless_present = "stdin", conflicts_with = "stdin")]
+    path: Option<PathBuf>,
+    /// Read the design JSON from stdin (bounded, in-memory; no file is written).
+    #[arg(long)]
+    stdin: bool,
+}
+
+#[derive(Debug, Subcommand)]
 enum DesignCommand {
     /// Validate a design and run the reuse gate.
     Check {
-        #[arg(long)]
-        path: PathBuf,
+        #[command(flatten)]
+        source: DesignSourceArgs,
     },
     /// Alias for check, used by the DSH tool.
     Validate {
-        #[arg(long)]
-        path: PathBuf,
+        #[command(flatten)]
+        source: DesignSourceArgs,
     },
     /// Emit the full design and reuse report (same gate, report-oriented output).
     Report {
-        #[arg(long)]
-        path: PathBuf,
+        #[command(flatten)]
+        source: DesignSourceArgs,
     },
 }
 
@@ -200,6 +224,14 @@ enum BaselineCommand {
         allow_live: bool,
         #[arg(long)]
         confirm: Option<String>,
+    },
+    /// Read-only testnet campaign preflight: pins, roots, funding and blockers.
+    Preflight {
+        #[arg(long, default_value = "testnet")]
+        network: String,
+        /// Exit 1 when any blocker remains.
+        #[arg(long)]
+        strict: bool,
     },
     /// Read-only identity and catalog-claim verification.
     Verify {
@@ -365,13 +397,16 @@ async fn main() -> ExitCode {
             }
         },
         Command::Design { command } => match command {
-            DesignCommand::Check { path }
-            | DesignCommand::Validate { path }
-            | DesignCommand::Report { path } => design_check(cli.json, &cli.registry, &path),
+            DesignCommand::Check { source }
+            | DesignCommand::Validate { source }
+            | DesignCommand::Report { source } => design_check(cli.json, &cli.registry, &source),
         },
         Command::Baseline { command } => match command {
             BaselineCommand::Plan { network, apps } => {
                 baseline_plan(cli.json, &cli.registry, &network, apps.as_deref()).await
+            }
+            BaselineCommand::Preflight { network, strict } => {
+                baseline_preflight(cli.json, &cli.registry, &network, strict)
             }
             BaselineCommand::Keygen {
                 network,
@@ -446,6 +481,9 @@ async fn main() -> ExitCode {
         Command::Formal { command } => match command {
             FormalCommand::Check { project, strict } => formal_check(cli.json, &project, strict),
             FormalCommand::Sync { project, source } => formal_sync(cli.json, &project, &source),
+        },
+        Command::Project { command } => match command {
+            ProjectCommand::Status { project } => project_status(cli.json, &cli.registry, &project),
         },
         Command::Check { project, profile } => check_project(cli.json, &project, &profile),
         Command::Deploy { command } => match command {
@@ -719,6 +757,196 @@ async fn probe_checked(
         return Err(ExitCode::from(2));
     }
     Ok((profile, observed, checks))
+}
+
+fn read_json_file(path: &Path) -> Result<Value, String> {
+    let text =
+        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    serde_json::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn baseline_preflight(json: bool, registry_path: &Path, network: &str, strict: bool) -> ExitCode {
+    if network != "testnet" {
+        return fail(
+            json,
+            "Usage",
+            Some("network"),
+            "baseline preflight is for testnet; live execution is gated",
+            2,
+        );
+    }
+    let profile = match read_json_file(&registry_path.join("networks").join("testnet.json")) {
+        Ok(value) => value,
+        Err(error) => return fail(json, "RegistryError", None, &error, 2),
+    };
+    let primitives = match read_json_file(&registry_path.join("primitives.json")) {
+        Ok(value) => value,
+        Err(error) => return fail(json, "RegistryError", None, &error, 2),
+    };
+    let install = read_json_file(&registry_path.join("install").join("index.json"))
+        .unwrap_or_else(|_| json!({"apps": {}}));
+
+    let mut pins = Vec::new();
+    if let Some(map) = primitives.get("pins").and_then(Value::as_object) {
+        for (app, pin) in map {
+            let (text, state) = if let Some(text) = pin.as_str() {
+                (
+                    text.to_string(),
+                    if text.starts_with("TBD") {
+                        "tbd"
+                    } else {
+                        "pinned"
+                    },
+                )
+            } else {
+                (pin.to_string(), "pinned")
+            };
+            pins.push(json!({"app": app, "pin": text, "state": state}));
+            if let Some(consumers) = pin.as_object() {
+                for (consumer, pin) in consumers {
+                    let text = pin.as_str().unwrap_or("?").to_string();
+                    pins.push(json!({
+                        "app": format!("{app}/{consumer}"),
+                        "pin": text,
+                        "state": if text.starts_with("TBD") { "tbd" } else { "pinned" },
+                    }));
+                }
+            }
+        }
+    }
+
+    let mut roots = Vec::new();
+    if let Some(map) = profile.get("roots").and_then(Value::as_object) {
+        for (app, root) in map {
+            roots.push(json!({
+                "app": app,
+                "status": root.get("status").and_then(Value::as_str).unwrap_or("unknown"),
+                "verified": root.get("verified").and_then(Value::as_bool).unwrap_or(false),
+                "root": root.get("root").and_then(Value::as_str),
+                "committedManifest": root.get("committedManifest").and_then(Value::as_str),
+                "uncommittedCandidate": root.get("uncommittedCandidate").and_then(Value::as_str),
+                "accountFactoryCandidate": root.get("accountFactoryCandidate").and_then(Value::as_str),
+            }));
+        }
+    }
+
+    let mut blockers = Vec::new();
+    let rcash = roots
+        .iter()
+        .find(|root| root.get("app").and_then(Value::as_str) == Some("r-cash"));
+    if rcash
+        .and_then(|root| root.get("verified"))
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        blockers.push(json!({
+            "kind": "r-cash-account-factory",
+            "detail": "r-cash component:account-factory is not verified on testnet",
+            "hint": "Resolve or reconcile the candidate root before any live deploy; never create a second r-cash root.",
+        }));
+    }
+    for app in ["r-gen", "r-sure", "r-share", "r-print"] {
+        let verified = roots
+            .iter()
+            .find(|root| root.get("app").and_then(Value::as_str) == Some(app))
+            .and_then(|root| root.get("verified"))
+            .and_then(Value::as_bool)
+            == Some(true);
+        if !verified {
+            blockers.push(json!({
+                "kind": "missing-root",
+                "detail": format!("{app} has no verified testnet root"),
+                "hint": "Plan a full deploy for this app only after the campaign approval and pin resolution.",
+            }));
+        }
+    }
+    for pin in &pins {
+        if pin.get("state").and_then(Value::as_str) == Some("tbd") {
+            blockers.push(json!({
+                "kind": "tbd-pin",
+                "detail": format!("{} pin is {}", pin["app"], pin["pin"]),
+                "hint": "Resolve the maintainer pin or record an explicit approval before live use.",
+            }));
+        }
+    }
+    let install_sure = install
+        .get("apps")
+        .and_then(|apps| apps.get("r-sure"))
+        .and_then(Value::as_str);
+    let consumer_sure = primitives
+        .get("pins")
+        .and_then(|pins| pins.get("r-gen"))
+        .and_then(|pins| pins.get("r-sure"))
+        .and_then(Value::as_str);
+    if let (Some(install_sure), Some(consumer_sure)) = (install_sure, consumer_sure) {
+        if install_sure != consumer_sure {
+            blockers.push(json!({
+                "kind": "pin-mismatch",
+                "detail": format!("r-sure install pin {install_sure} but r-gen names {consumer_sure}"),
+                "hint": "Prove the adapter on devnet before a live campaign; never deploy two r-gen roots.",
+            }));
+        }
+    }
+    let faucet_amount = profile
+        .get("faucet")
+        .and_then(|faucet| faucet.get("amount"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    if faucet_amount <= 0 {
+        blockers.push(json!({
+            "kind": "funding",
+            "detail": "no testnet faucet amount is recorded",
+            "hint": "Record the faucet arithmetic and get explicit approval for any spend.",
+        }));
+    }
+
+    let funding = json!({
+        "faucetAmount": faucet_amount,
+        "oneDripPerAddress": true,
+        "dripsRequired": 1,
+        "note": "The faucet is one 0.3 REV drip per address and is rate-limited; consolidation needs separate approval. Verify phlo arithmetic before execution.",
+    });
+    let ok = blockers.is_empty();
+    let envelope = json!({
+        "schema": rhobuilder_core::schema("baseline-preflight"),
+        "ok": ok,
+        "network": network,
+        "pins": pins,
+        "roots": roots,
+        "funding": funding,
+        "blockers": blockers,
+        "execution": {
+            "live": false,
+            "requiresAllowLive": true,
+            "requiresConfirm": true,
+            "networkId": profile.get("networkId"),
+            "genesisBlockHash": profile.get("genesisBlockHash"),
+        },
+        "evidenceTemplate": "docs/src/evidence/testnet-campaign.template.json",
+    });
+    if json {
+        if let Err(error) = emit_json(&envelope) {
+            eprintln!("rhobuilder: cannot encode JSON: {error}");
+            return ExitCode::from(1);
+        }
+    } else {
+        println!(
+            "testnet preflight: {} blocker(s)",
+            envelope["blockers"].as_array().map_or(0, Vec::len)
+        );
+        for blocker in envelope["blockers"].as_array().into_iter().flatten() {
+            println!(
+                "  {}: {}",
+                blocker["kind"].as_str().unwrap_or("?"),
+                blocker["detail"].as_str().unwrap_or("")
+            );
+        }
+    }
+    if strict && !ok {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 async fn baseline_plan(
@@ -2281,10 +2509,42 @@ fn scaffold_new(
     ExitCode::SUCCESS
 }
 
-fn design_check(json: bool, registry_path: &Path, path: &Path) -> ExitCode {
-    let design = match rhobuilder_core::design::load(path) {
-        Ok(design) => design,
-        Err(error) => return fail(json, "DesignError", None, &error.to_string(), 2),
+fn read_design_source(
+    source: &DesignSourceArgs,
+) -> Result<(rhobuilder_core::design::Design, &'static str), String> {
+    if source.stdin {
+        use std::io::Read;
+        const MAX_DESIGN_BYTES: u64 = 1_048_576;
+        let mut text = String::new();
+        std::io::stdin()
+            .take(MAX_DESIGN_BYTES + 1)
+            .read_to_string(&mut text)
+            .map_err(|error| format!("cannot read design from stdin: {error}"))?;
+        if text.trim().is_empty() {
+            return Err("design stdin is empty".to_string());
+        }
+        if text.len() as u64 > MAX_DESIGN_BYTES {
+            return Err(format!(
+                "design stdin is larger than the {MAX_DESIGN_BYTES}-byte limit"
+            ));
+        }
+        return rhobuilder_core::design::parse(&text)
+            .map(|design| (design, "stdin"))
+            .map_err(|error| error.to_string());
+    }
+    let path = source
+        .path
+        .as_ref()
+        .ok_or_else(|| "a design --path or --stdin is required".to_string())?;
+    rhobuilder_core::design::load(path)
+        .map(|design| (design, "path"))
+        .map_err(|error| error.to_string())
+}
+
+fn design_check(json: bool, registry_path: &Path, source: &DesignSourceArgs) -> ExitCode {
+    let (design, source_name) = match read_design_source(source) {
+        Ok(value) => value,
+        Err(error) => return fail(json, "DesignError", None, &error, 2),
     };
     let validation = design.validate();
     let registry = match rhobuilder_registry::Registry::load(registry_path) {
@@ -2293,6 +2553,18 @@ fn design_check(json: bool, registry_path: &Path, path: &Path) -> ExitCode {
     };
     let reuse = rhobuilder_registry::reuse::check(&design, &registry);
     let ok = validation.ok && reuse.ok;
+    let owed: Vec<String> = design
+        .components
+        .iter()
+        .filter(|component| {
+            !component.arms.is_empty()
+                && matches!(
+                    component.lean_status.as_deref(),
+                    None | Some("owed") | Some("missing")
+                )
+        })
+        .map(|component| component.id.clone())
+        .collect();
     let envelope = json!({
         "schema": rhobuilder_core::schema("design-check"),
         "ok": ok,
@@ -2300,6 +2572,9 @@ fn design_check(json: bool, registry_path: &Path, path: &Path) -> ExitCode {
         "app": {"name": &design.app.name, "slug": &design.app.slug},
         "validation": &validation,
         "reuse": &reuse,
+        "owed": owed,
+        "writes": false,
+        "source": source_name,
     });
     if json {
         if let Err(error) = emit_json(&envelope) {
@@ -2767,6 +3042,72 @@ async fn chain_deploy_status(
     }
 }
 
+fn project_status(json: bool, registry_path: &Path, project: &Path) -> ExitCode {
+    if !project.is_dir() {
+        return fail(
+            json,
+            "Io",
+            Some("project"),
+            &format!("{} is not a project directory", project.display()),
+            2,
+        );
+    }
+    let mut report = rhobuilder_core::project::status(project);
+    if let Ok(design) = rhobuilder_core::design::load(&project.join("design.json")) {
+        if let Ok(registry) = rhobuilder_registry::Registry::load(registry_path) {
+            let reuse = rhobuilder_registry::reuse::check(&design, &registry);
+            report["design"]["reuse"] = serde_json::to_value(&reuse).unwrap_or(Value::Null);
+            if !reuse.ok {
+                report["design"]["ok"] = json!(false);
+                if let Some(badges) = report["badges"].as_array_mut() {
+                    if !badges
+                        .iter()
+                        .any(|badge| badge.get("label").and_then(Value::as_str) == Some("Refused"))
+                    {
+                        badges.insert(
+                            1,
+                            json!({
+                                "label": "Refused",
+                                "state": "fail",
+                                "detail": "the reuse gate refused this design",
+                            }),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    if json {
+        if let Err(error) = emit_json(&report) {
+            eprintln!("rhobuilder: cannot encode JSON: {error}");
+            return ExitCode::from(1);
+        }
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "project {}: {}",
+        report["project"]["slug"].as_str().unwrap_or("?"),
+        report["design"]["ok"]
+            .as_bool()
+            .map_or("design not checked", |ok| if ok {
+                "design ok"
+            } else {
+                "design refused"
+            })
+    );
+    if let Some(badges) = report["badges"].as_array() {
+        for badge in badges {
+            println!(
+                "  {:16} {:8} {}",
+                badge["label"].as_str().unwrap_or("?"),
+                badge["state"].as_str().unwrap_or("?"),
+                badge["detail"].as_str().unwrap_or("")
+            );
+        }
+    }
+    ExitCode::SUCCESS
+}
+
 fn check_project(json: bool, project: &Path, profile: &str) -> ExitCode {
     let report = match rhobuilder_gates::check(project, profile) {
         Ok(report) => report,
@@ -2913,20 +3254,20 @@ async fn chain_probe(json: bool, registry: &Path, network: &str) -> ExitCode {
 
 fn error_copy(kind: &str) -> (&'static str, Option<&'static str>) {
     match kind {
-        "Usage" => ("usage", Some("Check the command arguments and try again.")),
-        "IdentityMismatch" | "NetworkGated" => (
+        "Usage" | "OutsideWorkspace" => ("usage", Some("Check the command arguments and try again.")),
+        "IdentityMismatch" | "NetworkGated" | "ProfileError" | "NoEndpoint" => (
             "identity_mismatch",
             Some("The node is not the network this plan or profile expects. Re-probe before planning."),
         ),
-        "LiveExecutionGated" => (
+        "LiveExecutionGated" | "ConfirmationMismatch" => (
             "gated",
             Some("A live action needs explicit approval, a funded key and the printed confirmation token."),
         ),
-        "UnsafeKey" | "UnsafeKeyPath" | "MissingKey" => (
+        "UnsafeKey" | "UnsafeKeyPath" | "MissingKey" | "Keystore" => (
             "unsafe_key",
             Some("Use a mode-0600 key file under the project or installation; never paste a key into chat."),
         ),
-        "MissingDependency" => (
+        "MissingDependency" | "UnresolvedPlaceholder" | "InstallError" | "InstallFailed" => (
             "missing_dependency",
             Some("Install or verify the shared primitives that this app reuses before deploying it."),
         ),
@@ -2934,19 +3275,23 @@ fn error_copy(kind: &str) -> (&'static str, Option<&'static str>) {
             "partial_root",
             Some("Stop and reconcile the existing root; do not redeploy a commodity primitive."),
         ),
-        "NodeUnavailable" | "BadResponse" | "Http" => (
+        "NodeUnavailable" | "BadResponse" | "Http" | "CallFailed" | "FundingError" => (
             "node_unavailable",
             Some("The node is unreachable, unhealthy or rate-limited. Check the devnet/testnet status."),
         ),
-        "GateFailure" => (
+        "GateFailure" | "GateError" | "FormalError" => (
             "gate_failure",
             Some("A generated-project gate failed. Open the gate output before continuing."),
         ),
-        "DesignError" | "RegistryError" | "InstallPlanError" => (
+        "DesignError" | "RegistryError" | "InstallPlanError" | "Io" | "Json" | "ScaffoldError"
+        | "ChainError" | "PlanError" | "AppPlanError" | "UnknownPrimitive" | "UnknownVertex" => (
             "setup",
-            Some("Fix the local design, registry or install-plan input before retrying."),
+            Some("Fix the local design, registry, project or install input before retrying."),
         ),
-        _ => ("error", None),
+        _ => (
+            "error",
+            Some("The command failed; open the error detail and retry after fixing the cause."),
+        ),
     }
 }
 
@@ -2995,6 +3340,68 @@ fn print_json(value: Value) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_known_error_kind_has_a_hint() {
+        for kind in [
+            "Usage",
+            "OutsideWorkspace",
+            "IdentityMismatch",
+            "NetworkGated",
+            "ProfileError",
+            "NoEndpoint",
+            "LiveExecutionGated",
+            "ConfirmationMismatch",
+            "UnsafeKey",
+            "UnsafeKeyPath",
+            "MissingKey",
+            "Keystore",
+            "MissingDependency",
+            "UnresolvedPlaceholder",
+            "InstallError",
+            "InstallFailed",
+            "PartialRoot",
+            "Verification",
+            "NodeUnavailable",
+            "BadResponse",
+            "Http",
+            "CallFailed",
+            "FundingError",
+            "GateFailure",
+            "GateError",
+            "FormalError",
+            "DesignError",
+            "RegistryError",
+            "InstallPlanError",
+            "Io",
+            "Json",
+            "ScaffoldError",
+            "ChainError",
+            "PlanError",
+            "AppPlanError",
+            "UnknownPrimitive",
+            "UnknownVertex",
+            "AnUnknownFutureKind",
+        ] {
+            let (_, hint) = error_copy(kind);
+            assert!(hint.is_some(), "{kind} has no hint");
+        }
+    }
+
+    #[test]
+    fn design_source_requires_path_or_stdin() {
+        assert!(Cli::try_parse_from(["rhobuilder", "design", "validate"]).is_err());
+        assert!(Cli::try_parse_from([
+            "rhobuilder",
+            "design",
+            "validate",
+            "--path",
+            "design.json",
+            "--stdin",
+        ])
+        .is_err());
+        assert!(Cli::try_parse_from(["rhobuilder", "design", "validate", "--stdin"]).is_ok());
+    }
 
     #[test]
     fn cli_parses_version_with_json() {

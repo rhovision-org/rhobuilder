@@ -8,7 +8,8 @@ sequence `design check`, `new`, `deploy plan`, then `deploy execute` in the app 
    status/capabilities/shards/blocks, never an exploratory loop.
 2. **Design.** Interview for the unique value, actors, capabilities, resources, lifecycle,
    value paths, failure/remedy and acceptance. Write `design.json` (`rhobuilder.design/v1`)
-   and `spec/design.md`. Model the unique interaction protocol, not a CRUD table.
+   and `spec/design.md`. The dashboard composer can build, validate and save the same
+   document; model the unique interaction protocol, not a CRUD table.
 3. **Reuse.** Query the registry and graph. Tag every component `reuse`, `extend` or
    `new`. `extend` is adapter-only or a sibling proposal; deployed Rholang is immutable.
    A duplicate commodity primitive without an approved override stops the loop.

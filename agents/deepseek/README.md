@@ -19,22 +19,24 @@ writes `.dsh/patches/rhobuilder-<mode>.yml`, and starts DSH with `--patch`.
 ## Plugin
 
 `plugin/index.js` imports nothing from `@deepseek-ai/*`; DSH mounts it by absolute path.
-It registers six tools over `rhobuilder --json`:
+It registers seven tools over `rhobuilder --json`:
 
 - `rhobuilder_registry` — list/get/graph/verify/drift.
 - `rhobuilder_design` — validate/report a design.
 - `rhobuilder_scaffold` — plan (default) or apply.
 - `rhobuilder_check` — static/formal/full gates.
+- `rhobuilder_status` — read-only project status.
 - `rhobuilder_plan` — read-only deploy plan.
 - `rhobuilder_chain` — probe/status/deploy-status.
 
 `plugin/bridge.js` is pure Node: argv, stdin/stdout JSON, timeout, abort and a typed error
-envelope. The plugin's `spawn` is trusted host code; the surface stays narrow and never
-exposes signed deploys.
+envelope with per-kind prose. The plugin's `spawn` is trusted host code; the surface stays
+narrow and never exposes signed deploys.
 
 `ui/` is a second absolute-path package for the web profile. It brands the shell and adds
-the Rhobuilder dashboard; its server half serves read-only `/rhobuilder/api/*` routes
-behind DSH's browser-token fence. See `docs/src/ui.md`.
+the Rhobuilder dashboard; its server half serves `/rhobuilder/api/*` behind DSH's
+browser-token fence. The composer validates in memory and may save a validated
+`design.json`; all other routes are read-only. See `docs/src/ui.md`.
 
 ## Skills and presets
 
