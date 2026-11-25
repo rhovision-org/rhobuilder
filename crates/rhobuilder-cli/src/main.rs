@@ -1425,6 +1425,99 @@ fn app_slug(project: &Path) -> Result<String, String> {
 fn app_plan(project: &Path) -> Result<(InstallPlan, PathBuf), String> {
     let slug = app_slug(project)?;
     let contracts = project.join("contracts").join("src");
+    let manifest_path = project.join(".rhobuilder-contracts.json");
+    if manifest_path.is_file() {
+        let text = std::fs::read_to_string(&manifest_path)
+            .map_err(|error| format!("{}: {error}", manifest_path.display()))?;
+        let value: Value = serde_json::from_str(&text)
+            .map_err(|error| format!("{}: {error}", manifest_path.display()))?;
+        let array = |key: &str| -> Vec<String> {
+            value
+                .get(key)
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let mut steps = Vec::new();
+        for item in value
+            .get("steps")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "contract manifest step has no name".to_string())?;
+            let term = item
+                .get("term")
+                .and_then(Value::as_str)
+                .ok_or_else(|| format!("contract manifest step {name} has no term"))?;
+            let mut captures = Vec::new();
+            for capture in item
+                .get("captures")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let placeholder = capture
+                    .get("placeholder")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "capture has no placeholder".to_string())?;
+                let from = capture
+                    .get("from")
+                    .and_then(Value::as_str)
+                    .unwrap_or("uris");
+                captures.push(executor::Capture {
+                    placeholder: placeholder.to_string(),
+                    from: from.to_string(),
+                    key: capture
+                        .get("key")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    index: capture
+                        .get("index")
+                        .and_then(Value::as_u64)
+                        .map(|index| index as usize),
+                });
+            }
+            steps.push(executor::PlanStep {
+                name: name.to_string(),
+                term: term.to_string(),
+                root: item.get("root").and_then(Value::as_bool).unwrap_or(false),
+                placeholders: Vec::new(),
+                captures,
+            });
+        }
+        let plan = InstallPlan {
+            schema: "rhobuilder.install-plan/v1".to_string(),
+            app: slug,
+            repo: String::new(),
+            commit: "local".to_string(),
+            source_root: "contracts/src".to_string(),
+            root_key: value
+                .get("rootKey")
+                .and_then(Value::as_str)
+                .unwrap_or("component:root")
+                .to_string(),
+            resolve_arity: 3,
+            phlo: executor::PlanPhlo {
+                limit: 4_000_000,
+                price: 1,
+            },
+            dependencies: array("dependencies"),
+            required_keys: array("requiredKeys"),
+            placeholders: Vec::new(),
+            steps,
+        };
+        return Ok((plan, contracts));
+    }
     let mut files: Vec<PathBuf> = std::fs::read_dir(&contracts)
         .map_err(|error| format!("{}: {error}", contracts.display()))?
         .filter_map(Result::ok)
@@ -1965,6 +2058,22 @@ fn scaffold_new(
         Err(error) => return fail(json, "RegistryError", None, &error.to_string(), 2),
     };
     let reuse = rhobuilder_registry::reuse::check(&design, &registry);
+    let primitives: BTreeMap<String, rhobuilder_core::contracts::PrimitiveInfo> = registry
+        .primitives
+        .iter()
+        .filter_map(|primitive| {
+            primitive.component.as_ref().map(|component| {
+                (
+                    primitive.id.clone(),
+                    rhobuilder_core::contracts::PrimitiveInfo {
+                        component: component.clone(),
+                        owner: primitive.owner.clone(),
+                        resolve_arity: if primitive.owner == "r-gen" { 2 } else { 3 },
+                    },
+                )
+            })
+        })
+        .collect();
     if !validation.ok || !reuse.ok {
         let envelope = json!({
             "schema": rhobuilder_core::schema("scaffold-refusal"),
@@ -2025,13 +2134,14 @@ fn scaffold_new(
     };
 
     if apply_now {
-        let written = match rhobuilder_core::scaffold::apply(
+        let written = match rhobuilder_core::scaffold::apply_with_primitives(
             &template_root,
             &design,
             template,
             &reuse_value,
             &target_abs,
             force,
+            &primitives,
         ) {
             Ok(written) => written,
             Err(error) => {
@@ -2061,12 +2171,13 @@ fn scaffold_new(
         return ExitCode::SUCCESS;
     }
 
-    let plan = match rhobuilder_core::scaffold::plan(
+    let plan = match rhobuilder_core::scaffold::plan_with_primitives(
         &template_root,
         &design,
         template,
         &reuse_value,
         &target_abs,
+        &primitives,
     ) {
         Ok(plan) => plan,
         Err(error) => return fail(json, "ScaffoldError", None, &error.to_string(), 2),

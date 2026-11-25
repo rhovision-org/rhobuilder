@@ -17,8 +17,11 @@ rhobuilder --json new /tmp/app --design fixtures/designs/booking.json \
 
 ## What is generated
 
-- `contracts/src/` — root, kernel/admin/terms placeholders, the first resource cell and the
-  r-cash payments adapter placeholder.
+- `contracts/src/` — for a design with a worked example (`bookable-service`), the
+  hand-authored contracts; otherwise a generic root, one linear cell per resource, one
+  cell per `new` component, and a resolver adapter per `reuse`/`extend` component.
+- `.rhobuilder-contracts.json` — generic designs only: install order, URI captures and
+  required Root keys consumed by `deploy plan|execute`.
 - `spec/graph/{vertices,edges}.yaml` and `spec/flows/core.yaml` — generated from the design;
   every arm starts `lean_status: owed`.
 - `spec/lean/` — a self-contained Lean 4.12 stub (`lake build` passes; only `True` is
@@ -43,5 +46,6 @@ pinned node parser when `RHOLO_DIR` is set; the scaffold suite is not a behaviou
 
 ## Status
 
-Generated repositories are `Scaffold`: structure and static gates only. The unique arms,
-the real Lean invariants and the behavioural suites are the app author's work.
+Generated repositories are `Scaffold`: the generic contracts deploy and resolve, but the
+unique arms, real Lean invariants and behavioural suites are the app author's work. The
+`bookable-service` example is the reference implementation of that next step.

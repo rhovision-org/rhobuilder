@@ -1,9 +1,9 @@
 {
   "schema": "rhobuilder.gates/v1",
   "source": "gates",
-  "sourceCommit": "665768af3666b48b222fb20f32a1dbcafa3c590f",
+  "sourceCommit": "9280b9d40733af7a694977924448c06839e4edf1",
   "files": {
-    "spec_check.py": "7f289c748f08664bc30f4d19f04155cc9cd92c57606f0442cf3b6a345d793634",
+    "spec_check.py": "6f45f0dfe3bb0802a249d684c347932f29cba9373fa9caccc74b1adeae49ed72",
     "parse_check.sh": "fb7ddbddcca7669991aac01ec37d9e0ef9908a3640aac88bf962628ace4e850e",
     "check_vendored.py": "68db5aa766b5a40f1a644be2ef14c36542a72a4ad4b96ee034784379784555c1",
     "check_obligations.py": "ff26065b6248500a36c042d29a588797bdf369d0777aff90328e06cdaa9cad18",

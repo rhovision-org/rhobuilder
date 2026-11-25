@@ -229,6 +229,7 @@ fn unresolved(text: &str) -> Vec<String> {
             if !ALLOWED_DUNDERS.contains(&token.as_str())
                 && !PLACEHOLDERS.contains(&token.as_str())
                 && !INSTALL_PLACEHOLDERS.contains(&token.as_str())
+                && !token.ends_with("_URI__")
                 && !found.contains(&token)
             {
                 found.push(token);
@@ -342,6 +343,7 @@ fn render(
     template: Template,
     reuse: &Value,
     target: &Path,
+    primitives: &BTreeMap<String, crate::contracts::PrimitiveInfo>,
 ) -> Result<(ScaffoldPlan, BTreeMap<String, Vec<u8>>), ScaffoldError> {
     if !template_root.is_dir() {
         return Err(ScaffoldError::MissingTemplate(
@@ -364,6 +366,14 @@ fn render(
     let example = template_root.join("examples").join(&design.app.slug);
     if example.is_dir() {
         collect(&example, &example, &mut raw)?;
+    } else if !primitives.is_empty() {
+        // Replace the common placeholder contracts with real generic patterns. The
+        // worked-example branch above wins for its own slug.
+        raw.retain(|path, _| !path.starts_with("contracts/src/"));
+        let generated = crate::contracts::generate(design, primitives)?;
+        for (path, bytes) in generated.files {
+            raw.insert(path, bytes);
+        }
     }
 
     let map = replacements(design);
@@ -422,7 +432,25 @@ pub fn plan(
     reuse: &Value,
     target: &Path,
 ) -> Result<ScaffoldPlan, ScaffoldError> {
-    render(template_root, design, template, reuse, target).map(|(plan, _)| plan)
+    plan_with_primitives(
+        template_root,
+        design,
+        template,
+        reuse,
+        target,
+        &BTreeMap::new(),
+    )
+}
+
+pub fn plan_with_primitives(
+    template_root: &Path,
+    design: &Design,
+    template: Template,
+    reuse: &Value,
+    target: &Path,
+    primitives: &BTreeMap<String, crate::contracts::PrimitiveInfo>,
+) -> Result<ScaffoldPlan, ScaffoldError> {
+    render(template_root, design, template, reuse, target, primitives).map(|(plan, _)| plan)
 }
 
 /// Write the rendered plan. `force` merges into a non-empty target; it never deletes.
@@ -434,7 +462,28 @@ pub fn apply(
     target: &Path,
     force: bool,
 ) -> Result<usize, ScaffoldError> {
-    let (_, files) = render(template_root, design, template, reuse, target)?;
+    apply_with_primitives(
+        template_root,
+        design,
+        template,
+        reuse,
+        target,
+        force,
+        &BTreeMap::new(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn apply_with_primitives(
+    template_root: &Path,
+    design: &Design,
+    template: Template,
+    reuse: &Value,
+    target: &Path,
+    force: bool,
+    primitives: &BTreeMap<String, crate::contracts::PrimitiveInfo>,
+) -> Result<usize, ScaffoldError> {
+    let (_, files) = render(template_root, design, template, reuse, target, primitives)?;
     if target.exists() {
         let empty = std::fs::read_dir(target)
             .map(|mut entries| entries.next().is_none())
