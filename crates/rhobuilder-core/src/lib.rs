@@ -4,6 +4,7 @@
 //! dependency-free until then so the CLI and the JSON contract can be built without the
 //! chain client.
 
+pub mod contracts;
 pub mod design;
 pub mod formal;
 pub mod scaffold;

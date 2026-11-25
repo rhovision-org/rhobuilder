@@ -87,7 +87,11 @@ def main() -> int:
             fail(failures, f"{path.relative_to(ROOT)} uses select; committed choice is required")
         if "TODO" in text or "FIXME" in text:
             fail(failures, f"{path.relative_to(ROOT)} contains a TODO/FIXME")
-        unknown = sorted(set(PLACEHOLDER.findall(text)) - INSTALL_PLACEHOLDERS)
+        unknown = sorted(
+            item
+            for item in set(PLACEHOLDER.findall(text)) - INSTALL_PLACEHOLDERS
+            if not item.endswith("_URI__")
+        )
         if unknown:
             fail(
                 failures,

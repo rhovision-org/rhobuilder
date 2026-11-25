@@ -9,7 +9,7 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.95.0"
@@ -24,7 +24,7 @@ jobs:
   plugin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -37,7 +37,7 @@ jobs:
   launcher:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -50,7 +50,7 @@ jobs:
   lean:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: formal/lean/RhoApp
@@ -58,7 +58,7 @@ jobs:
   scaffold:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.95.0"
@@ -77,11 +77,16 @@ jobs:
             --design fixtures/designs/booking.json --template full --apply --force
           make -C /tmp/rhobuilder-full client-check
           npm --prefix /tmp/rhobuilder-full/web audit --audit-level=high
+      - run: |
+          cargo run -q -p rhobuilder-cli -- new /tmp/rhobuilder-ledger \
+            --design fixtures/designs/payments-ledger.json --template headless --apply --force
+          make -C /tmp/rhobuilder-ledger check
+          ./target/debug/rhobuilder --json formal check --project /tmp/rhobuilder-ledger
 
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
