@@ -15,7 +15,7 @@ harness and testnet baseline are not implemented yet. `make check` is the curren
 | Area | Status |
 |---|---|
 | Repo + DSH plugin/skills/launcher skeleton | P0 — scaffolded |
-| Registry + network identity probe | P1 — first cut; drift pending |
+| Registry + network identity probe | P1 — profile/pins/catalog committed; pinned-commit drift clean |
 | Design gate + scaffolder + vendored gates | P2 — not implemented |
 | Lean `RhoApp` + per-dApp models | P4 — not implemented |
 | Devnet end-to-end | P5 — not implemented |

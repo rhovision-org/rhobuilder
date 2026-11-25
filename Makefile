@@ -2,9 +2,11 @@ PY ?= python3
 CARGO ?= cargo
 NODE ?= node
 MDBOOK ?= mdbook
+SOURCE_ROOT ?= /home/patrick
 
 .PHONY: help check rust-check fmt clippy test plugin-test launcher-test \
-	docs docs-check dsh-check registry-check scaffold-e2e formal-check clean
+	docs docs-check dsh-check registry-check registry-drift chain-probe \
+	scaffold-e2e formal-check clean
 
 help:
 	@echo "rhobuilder targets:"
@@ -15,7 +17,8 @@ help:
 	@echo "  make docs-check     mdBook build plus SUMMARY/link check"
 	@echo "  make dsh-check      read-only DeepSeek Harness preflight"
 	@echo "  make chain-probe    read-only testnet identity probe"
-	@echo "  make registry-check validate the committed registry (drift is P1-next)"
+	@echo "  make registry-check validate the committed registry"
+	@echo "  make registry-drift pinned-commit drift against $(SOURCE_ROOT)"
 	@echo "  make scaffold-e2e   P2: generate and verify a fixture dApp"
 	@echo "  make formal-check   P4: Lean RhoApp and per-dApp obligations"
 
@@ -52,6 +55,10 @@ chain-probe:
 
 registry-check:
 	$(PY) tools/check_registry.py
+
+registry-drift:
+	$(CARGO) run -q -p rhobuilder-cli -- --json registry drift \
+		--source-root $(SOURCE_ROOT) --strict
 
 scaffold-e2e:
 	@echo "scaffold-e2e: not implemented until P2" >&2

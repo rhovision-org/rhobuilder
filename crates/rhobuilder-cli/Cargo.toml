@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 rhobuilder-core.workspace = true
 rhobuilder-chain.workspace = true
+rhobuilder-registry.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

@@ -39,7 +39,7 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       argv = [...base, 'version']
       break
     case 'registry': {
-      const action = requireEnum(args, 'action', ['list', 'get', 'graph', 'verify'])
+      const action = requireEnum(args, 'action', ['list', 'get', 'graph', 'verify', 'drift'])
       argv = [...base, 'registry', action]
       pushFlag(argv, '--network', args.network)
       pushFlag(argv, '--id', args.id)
@@ -47,6 +47,8 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       pushFlag(argv, '--kind', args.kind)
       pushFlag(argv, '--root', args.root)
       pushFlag(argv, '--depth', args.depth)
+      pushFlag(argv, '--source-root', args.sourceRoot)
+      if (action === 'drift' && args.strict === true) argv.push('--strict')
       if (action === 'verify') argv.push('--read-only')
       break
     }

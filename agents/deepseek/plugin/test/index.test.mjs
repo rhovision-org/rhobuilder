@@ -47,6 +47,10 @@ test('the registry tool validates its action before spawning', async () => {
     registry.execute({ action: 'verify' }, {}),
     /`network` must be a non-empty string/,
   )
+  await assert.rejects(
+    registry.execute({ action: 'drift' }, {}),
+    /`sourceRoot` must be a non-empty string/,
+  )
 })
 
 test('the design and chain tools require their payloads', async () => {

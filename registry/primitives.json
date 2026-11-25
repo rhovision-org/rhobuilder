@@ -63,7 +63,10 @@
       "policy": { "reuse": "preferred", "extension": ["adapter-only"] },
       "networks": {
         "devnet": { "verified": "unverified" },
-        "testnet": { "verified": "candidate" }
+        "testnet": {
+          "verified": "candidate",
+          "root": "rho:id:dzazghhbteczy5kzrn81zw4aami117r9jxkoercq5qeqqna37yyo"
+        }
       }
     },
     {

@@ -56,6 +56,22 @@ test('registry get names the action and id', () => {
   ])
 })
 
+test('registry drift carries the source root and strict flag', () => {
+  const invocation = buildInvocation(
+    'registry',
+    { action: 'drift', sourceRoot: '/home/patrick', strict: true },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, [
+    '--json',
+    'registry',
+    'drift',
+    '--source-root',
+    '/home/patrick',
+    '--strict',
+  ])
+})
+
 test('verify is always read-only', () => {
   const invocation = buildInvocation(
     'registry',

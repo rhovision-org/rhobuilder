@@ -120,27 +120,30 @@ export function apply(ctx, config = {}) {
     tool({
       name: 'rhobuilder_registry',
       description:
-        'Query the rhobuilder on-chain primitive registry: list, get one primitive, show the reuse graph, or verify entries for a network. Use it before designing a new component.',
+        'Query the rhobuilder on-chain primitive registry: list, get one primitive, show the reuse graph, verify catalog claims for a network, or check pinned-commit drift against sibling checkouts. Use it before designing a new component.',
       parameters: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['list', 'get', 'graph', 'verify'] },
+          action: { type: 'string', enum: ['list', 'get', 'graph', 'verify', 'drift'] },
           network: { type: 'string', description: 'devnet, testnet or mainnet' },
           id: { type: 'string', description: 'primitive id for action=get' },
           owner: { type: 'string', description: 'owner filter for action=list' },
           kind: { type: 'string', description: 'kind filter for action=list' },
           root: { type: 'string', description: 'root vertex for action=graph' },
           depth: { type: 'number', description: 'graph depth, 1..8' },
+          sourceRoot: { type: 'string', description: 'sibling checkout root for action=drift' },
+          strict: { type: 'boolean', description: 'fail on an unavailable pin for action=drift' },
         },
         required: ['action'],
         additionalProperties: false,
       },
       timeoutMs: cfg.timeoutMs,
       execute: (args, exec) => {
-        requireAction(args, ['list', 'get', 'graph', 'verify'])
+        requireAction(args, ['list', 'get', 'graph', 'verify', 'drift'])
         if (args.action === 'get') requireString(args, 'id')
         if (args.action === 'verify') requireString(args, 'network')
         if (args.action === 'graph') requireString(args, 'root')
+        if (args.action === 'drift') requireString(args, 'sourceRoot')
         return runBridge('registry', args, cfg, exec)
       },
       render: renderRegistry,
