@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+/target/
+/docs/book/
+/.devnet/
+/.testnet/
+/deployments/*.json
+!deployments/.gitkeep
+/web/node_modules/
+/web/dist/
+/web/test-results/
+/spec/lean/.lake/

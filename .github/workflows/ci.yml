@@ -17,6 +17,9 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - run: cargo build -p rhobuilder-cli
+      - run: ./target/debug/rhobuilder --json design check --path fixtures/designs/booking.json
+      - run: ./target/debug/rhobuilder --json design check --path fixtures/designs/duplicate-escrow.json && exit 1 || exit 0
 
   plugin:
     runs-on: ubuntu-latest
@@ -39,6 +42,29 @@ jobs:
       - run: python3 -m unittest discover -s tools/tests -v
       - run: python3 tools/check_registry.py --json
       - run: python3 tools/launch_dsh.py --print-config headless
+
+  lean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: formal/lean/RhoApp
+
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: "0.4.40"
+      - run: make scaffold-e2e
 
   docs:
     runs-on: ubuntu-latest

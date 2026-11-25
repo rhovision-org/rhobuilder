@@ -1,0 +1,12 @@
+{
+  "schema": "rhobuilder.sibling/v1",
+  "sibling": "r-cash",
+  "pinned_commit": "49b441dea4f5561992387ed670ab263fcd5dd164",
+  "min_version": 1,
+  "assets": ["REV"],
+  "required_components": [
+    "component:account-factory",
+    "component:asset-resolver",
+    "component:clock"
+  ]
+}

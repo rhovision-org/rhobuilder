@@ -1,0 +1,17 @@
+[package]
+name = "__app__-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "__app__"
+path = "src/main.rs"
+
+[dependencies]
+__app__-sdk.workspace = true
+
+[lints]
+workspace = true

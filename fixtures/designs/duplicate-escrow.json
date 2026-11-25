@@ -1,0 +1,41 @@
+{
+  "schema": "rhobuilder.design/v1",
+  "app": {
+    "name": "Duplicate Escrow",
+    "slug": "duplicate-escrow",
+    "summary": "A deliberately wrong design that reimplements escrow instead of reusing r-sure.",
+    "networks": ["devnet"]
+  },
+  "uniqueValue": "A new escrow engine, which is the anti-pattern the gate must refuse.",
+  "actors": [{ "id": "buyer", "capabilities": ["fund"] }],
+  "resources": [
+    { "id": "escrow", "owner": "app", "stateCell": "escrowState", "lifecycle": ["funded", "released"] }
+  ],
+  "components": [
+    {
+      "id": "my-escrow",
+      "tag": "new",
+      "kind": "escrow",
+      "whyUnique": "Claims to be unique, but it is commodity escrow.",
+      "noRegisteredAlternative": ["rsure.policy"],
+      "arms": ["fund", "release"],
+      "invariants": ["one escrow cell per deal"]
+    }
+  ],
+  "graph": { "vertices": [], "edges": [] },
+  "conservation": [
+    { "path": "fund -> release", "assertion": "the released amount equals the funded amount" }
+  ],
+  "concurrency": [
+    { "risk": "double release", "mechanism": "the escrow cell is consumed once" }
+  ],
+  "remedies": [],
+  "acceptance": [
+    {
+      "id": "refused",
+      "given": "this design",
+      "when": "the reuse gate runs",
+      "then": "it is refused with r-sure as the existing primitive"
+    }
+  ]
+}

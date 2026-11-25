@@ -1,0 +1,47 @@
+{
+  "schema": "rhobuilder.design/v1",
+  "app": {
+    "name": "Duplicate Escrow Override",
+    "slug": "duplicate-escrow-override",
+    "summary": "The same escrow design with a recorded, approved override.",
+    "networks": ["devnet"]
+  },
+  "uniqueValue": "A deliberately different remedy path, recorded as an override.",
+  "actors": [{ "id": "buyer", "capabilities": ["fund"] }],
+  "resources": [
+    { "id": "escrow", "owner": "app", "stateCell": "escrowState", "lifecycle": ["funded", "released"] }
+  ],
+  "components": [
+    {
+      "id": "my-escrow",
+      "tag": "new",
+      "kind": "escrow",
+      "whyUnique": "A different remedy path is the only difference.",
+      "noRegisteredAlternative": ["rsure.policy"],
+      "arms": ["fund", "release"],
+      "invariants": ["one escrow cell per deal"],
+      "override": {
+        "reason": "The remedy path cannot be expressed by the existing policy; recorded for a local-only experiment.",
+        "approvedBy": "PatrickMockridge",
+        "approvedAt": "2026-11-25",
+        "scope": "local-app-only"
+      }
+    }
+  ],
+  "graph": { "vertices": [], "edges": [] },
+  "conservation": [
+    { "path": "fund -> release", "assertion": "the released amount equals the funded amount" }
+  ],
+  "concurrency": [
+    { "risk": "double release", "mechanism": "the escrow cell is consumed once" }
+  ],
+  "remedies": [],
+  "acceptance": [
+    {
+      "id": "override-warn",
+      "given": "this design",
+      "when": "the reuse gate runs",
+      "then": "it passes with an override warning"
+    }
+  ]
+}

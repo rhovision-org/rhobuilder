@@ -1,0 +1,4 @@
+// __app_name__ admin placeholder.
+new ret in {
+  ret!(true)
+}

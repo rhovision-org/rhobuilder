@@ -4,6 +4,10 @@
 //! dependency-free until then so the CLI and the JSON contract can be built without the
 //! chain client.
 
+pub mod design;
+pub mod formal;
+pub mod scaffold;
+
 /// The product name used in JSON envelopes and docs.
 pub const PRODUCT: &str = "rhobuilder";
 

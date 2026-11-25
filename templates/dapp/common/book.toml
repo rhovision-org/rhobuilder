@@ -1,0 +1,8 @@
+[book]
+title = "__app_name__"
+authors = ["rhovision"]
+language = "en"
+src = "docs/src"
+
+[build]
+build-dir = "docs/book"

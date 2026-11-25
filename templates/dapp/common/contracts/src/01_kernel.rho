@@ -1,0 +1,4 @@
+// __app_name__ kernel placeholder.
+new ret in {
+  ret!(true)
+}

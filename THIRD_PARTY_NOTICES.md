@@ -10,6 +10,13 @@ vendored. The plugin and launcher patterns are adapted from the azoth DSH integr
 AGPL-3.0-or-later. The adapted code remains under rhobuilder's AGPL-3.0-only licence, as
 permitted by the "or later" option.
 
+## RhoApp Lean library
+
+`formal/lean/RhoApp` is extracted from r-share's `spec/lean/RShare/Basic.lean` and
+`Linear/{Cell,Protocol,Deploy,Concurrency}.lean` at commit `7114acba` (AGPL-3.0-or-later).
+Theorem statements are unchanged; only the namespace and imports were generalized. Each
+file carries an origin notice.
+
 ## Sibling rhovision repositories
 
 The registry references r-cash, r-sure, r-gen, r-share, r-print and r-bridge by pinned

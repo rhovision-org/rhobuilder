@@ -1,0 +1,119 @@
+{
+  "schema": "rhobuilder.design/v1",
+  "app": {
+    "name": "Bookable Service",
+    "slug": "bookable-service",
+    "summary": "Book a service over an interval, pay in REV, and resolve disputes with a reputation-weighted panel.",
+    "networks": ["devnet", "testnet"]
+  },
+  "uniqueValue": "Reputation-weighted dispute panel selection over a booked service; payments, capacity and cover are reused.",
+  "actors": [
+    { "id": "guest", "capabilities": ["quote", "book", "cancel", "contest"] },
+    { "id": "provider", "capabilities": ["publish", "confirm", "settle"] },
+    { "id": "panelist", "capabilities": ["recordVerdict"] }
+  ],
+  "resources": [
+    {
+      "id": "dispute",
+      "owner": "app",
+      "stateCell": "disputeState",
+      "lifecycle": ["open", "panel", "resolved"]
+    }
+  ],
+  "components": [
+    {
+      "id": "payments",
+      "tag": "reuse",
+      "primitive": "rcash.account-factory",
+      "adapter": "40_payments.rho"
+    },
+    {
+      "id": "booking",
+      "tag": "reuse",
+      "primitive": "rshare.booking",
+      "adapter": "booking-adapter.rho"
+    },
+    {
+      "id": "cover",
+      "tag": "extend",
+      "primitive": "rsure.policy",
+      "adapter": "cover-adapter.rho",
+      "mode": "adapter-only",
+      "whyExtend": "A booked service can attach an existing r-sure policy; the adapter only reads and attaches it."
+    },
+    {
+      "id": "panel-selection",
+      "tag": "new",
+      "kind": "custom",
+      "whyUnique": "Reputation-weighted panel selection is a coordination protocol; no registered primitive selects or weights a dispute panel.",
+      "noRegisteredAlternative": ["rsure.claim"],
+      "arms": ["selectPanel", "recordVerdict"],
+      "invariants": ["a panelist votes once per dispute", "the panel cannot include the provider"]
+    }
+  ],
+  "graph": {
+    "vertices": [
+      { "id": "dispute", "owner": "app", "kind": "cell" },
+      { "id": "panel", "owner": "app", "kind": "cell" }
+    ],
+    "edges": [
+      {
+        "id": "booking-pays-account",
+        "from": "booking",
+        "to": "account",
+        "verb": "pays",
+        "kind": "call"
+      },
+      {
+        "id": "dispute-selects-panel",
+        "from": "dispute",
+        "to": "panel",
+        "verb": "selects",
+        "kind": "call"
+      },
+      {
+        "id": "panel-reads-policy",
+        "from": "panel",
+        "to": "policy",
+        "verb": "references",
+        "kind": "call"
+      }
+    ]
+  },
+  "conservation": [
+    {
+      "path": "booking -> account",
+      "assertion": "the deposit and the settlement sum to the quoted rent; no path mints or burns"
+    }
+  ],
+  "concurrency": [
+    {
+      "risk": "two guests acquire the same slot",
+      "mechanism": "r-share's listing allocator takes and commits the slot set once; one winner"
+    },
+    {
+      "risk": "a panelist votes twice",
+      "mechanism": "the dispute cell records each panelist once before replying"
+    }
+  ],
+  "remedies": [
+    {
+      "path": "provider no-show",
+      "action": "guest opens a dispute; the panel resolves; the booking remedy refunds"
+    }
+  ],
+  "acceptance": [
+    {
+      "id": "book-and-settle",
+      "given": "a published listing and a funded guest",
+      "when": "the guest books and the provider confirms",
+      "then": "the slot is held once and the settlement conserves the rent"
+    },
+    {
+      "id": "panel-once",
+      "given": "an open dispute",
+      "when": "a panelist votes twice",
+      "then": "the second vote is refused"
+    }
+  ]
+}

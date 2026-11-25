@@ -1,0 +1,14 @@
+// __app_name__ component root.
+// Scaffold: replace the arms with the app's real components. The 3-arg resolve shape is
+// the convention for a new app; r-gen's 2-arg GenRoot is the exception.
+new rs(`rho:registry:insertArbitrary`), deployId(`rho:rchain:deployId`) in {
+  new Root, ret in {
+    contract Root(@"resolve", @key, @minVersion, ret) = {
+      ret!(false, "unknown component")
+    } |
+    rs!(bundle+{*Root}, *ret) |
+    for (@uri <- ret) {
+      deployId!([uri])
+    }
+  }
+}

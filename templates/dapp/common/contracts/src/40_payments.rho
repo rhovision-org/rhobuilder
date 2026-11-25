@@ -1,0 +1,5 @@
+// __app_name__ r-cash payments adapter placeholder.
+// Resolve component:account-factory through the r-cash Root and use the account arms.
+new ret in {
+  ret!(true)
+}

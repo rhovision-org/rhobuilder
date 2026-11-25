@@ -1,0 +1,18 @@
+{
+  "schema": "rhobuilder.app.config/v1",
+  "network": "testnet",
+  "networkId": "testnet-133b1d307b175012",
+  "shard_id": "/testnet",
+  "genesisBlockHash": "133b1d307b1750129cf0cfb69c4c8f950da21c4e8db2a6a076464d0ccfd98d44",
+  "node": "https://testnet.rhobot.net",
+  "faucet": {
+    "path": "/api/faucet",
+    "amount": 30000000
+  },
+  "phlo_price": 1,
+  "phlo_limit": 8000000,
+  "keys": ".testnet/keys.json",
+  "state": ".testnet/install.json",
+  "manifest": "deployments/testnet.json",
+  "live": "gated"
+}

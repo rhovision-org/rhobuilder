@@ -1,0 +1,13 @@
+{
+  "schema": "rhobuilder.app.config/v1",
+  "network": "devnet",
+  "node": "http://localhost:40403",
+  "admin_node": "http://localhost:40405",
+  "grpc": "localhost:40402",
+  "shard_id": "/root",
+  "phlo_price": 1,
+  "phlo_limit": 1000000,
+  "keys": ".devnet/keys.json",
+  "state": ".devnet/install.json",
+  "manifest": "deployments/devnet.json"
+}

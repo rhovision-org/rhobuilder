@@ -22,6 +22,10 @@ struct Cli {
     #[arg(long, global = true, default_value = "registry")]
     registry: PathBuf,
 
+    /// Template root (default: ./templates/dapp).
+    #[arg(long, global = true, default_value = "templates/dapp")]
+    templates: PathBuf,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -40,6 +44,33 @@ enum Command {
         #[command(subcommand)]
         command: RegistryCommand,
     },
+    /// Design validation and the reuse gate.
+    Design {
+        #[command(subcommand)]
+        command: DesignCommand,
+    },
+    /// Vendored Lean library operations.
+    Formal {
+        #[command(subcommand)]
+        command: FormalCommand,
+    },
+    /// Plan or apply a new dApp skeleton.
+    New {
+        target: PathBuf,
+        #[arg(long)]
+        design: PathBuf,
+        #[arg(long, default_value = "full")]
+        template: String,
+        /// Write nothing; print the file plan.
+        #[arg(long)]
+        plan: bool,
+        /// Write the skeleton.
+        #[arg(long)]
+        apply: bool,
+        /// Allow a target outside the working directory or a non-empty target.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -49,6 +80,41 @@ enum ChainCommand {
         /// Network profile name under the registry (`devnet`, `testnet`, `mainnet`).
         #[arg(long, default_value = "testnet")]
         network: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DesignCommand {
+    /// Validate a design and run the reuse gate.
+    Check {
+        #[arg(long)]
+        path: PathBuf,
+    },
+    /// Alias for check, used by the DSH tool.
+    Validate {
+        #[arg(long)]
+        path: PathBuf,
+    },
+    /// Emit the full design and reuse report (same gate, report-oriented output).
+    Report {
+        #[arg(long)]
+        path: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum FormalCommand {
+    /// Verify the vendored RhoApp tree hash.
+    Check {
+        #[arg(long)]
+        project: PathBuf,
+    },
+    /// Refresh the vendored RhoApp from a rhobuilder checkout.
+    Sync {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long, default_value = ".")]
+        source: PathBuf,
     },
 }
 
@@ -98,6 +164,33 @@ async fn main() -> ExitCode {
         Command::Chain { command } => match command {
             ChainCommand::Probe { network } => chain_probe(cli.json, &cli.registry, &network).await,
         },
+        Command::Design { command } => match command {
+            DesignCommand::Check { path }
+            | DesignCommand::Validate { path }
+            | DesignCommand::Report { path } => design_check(cli.json, &cli.registry, &path),
+        },
+        Command::Formal { command } => match command {
+            FormalCommand::Check { project } => formal_check(cli.json, &project),
+            FormalCommand::Sync { project, source } => formal_sync(cli.json, &project, &source),
+        },
+        Command::New {
+            target,
+            design,
+            template,
+            plan,
+            apply,
+            force,
+        } => scaffold_new(
+            cli.json,
+            &cli.registry,
+            &cli.templates,
+            &target,
+            &design,
+            &template,
+            plan,
+            apply,
+            force,
+        ),
         Command::Registry { command } => match command {
             RegistryCommand::List {
                 network,
@@ -130,6 +223,273 @@ fn version(json: bool) -> ExitCode {
     } else {
         println!("{} {}", rhobuilder_core::PRODUCT, rhobuilder_core::VERSION);
         ExitCode::SUCCESS
+    }
+}
+
+fn formal_check(json: bool, project: &Path) -> ExitCode {
+    let report = match rhobuilder_core::formal::check(project) {
+        Ok(report) => report,
+        Err(error) => return fail(json, "FormalError", None, &error.to_string(), 2),
+    };
+    let ok = report.get("ok").and_then(Value::as_bool).unwrap_or(false);
+    if json {
+        if let Err(error) = emit_json(&json!({
+            "schema": rhobuilder_core::schema("formal-check"),
+            "ok": ok,
+            "report": &report,
+        })) {
+            eprintln!("rhobuilder: cannot encode JSON: {error}");
+            return ExitCode::from(1);
+        }
+    } else {
+        println!(
+            "formal check: {} ({} files)",
+            if ok { "ok" } else { "mismatch" },
+            report.get("files").and_then(Value::as_u64).unwrap_or(0)
+        );
+    }
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+fn formal_sync(json: bool, project: &Path, source: &Path) -> ExitCode {
+    let report = match rhobuilder_core::formal::sync(project, source) {
+        Ok(report) => report,
+        Err(error) => return fail(json, "FormalError", None, &error.to_string(), 2),
+    };
+    if json {
+        return print_json(json!({
+            "schema": rhobuilder_core::schema("formal-sync"),
+            "ok": true,
+            "report": report,
+        }));
+    }
+    println!(
+        "formal sync: {} files ({})",
+        report.get("written").and_then(Value::as_u64).unwrap_or(0),
+        report
+            .get("treeSha256")
+            .and_then(Value::as_str)
+            .unwrap_or("?")
+    );
+    ExitCode::SUCCESS
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scaffold_new(
+    json: bool,
+    registry_path: &Path,
+    templates: &Path,
+    target: &Path,
+    design_path: &Path,
+    template_name: &str,
+    plan_only: bool,
+    apply_now: bool,
+    force: bool,
+) -> ExitCode {
+    if plan_only && apply_now {
+        return fail(
+            json,
+            "Usage",
+            None,
+            "--plan and --apply are mutually exclusive",
+            2,
+        );
+    }
+    let design = match rhobuilder_core::design::load(design_path) {
+        Ok(design) => design,
+        Err(error) => return fail(json, "DesignError", None, &error.to_string(), 2),
+    };
+    let validation = design.validate();
+    let registry = match rhobuilder_registry::Registry::load(registry_path) {
+        Ok(registry) => registry,
+        Err(error) => return fail(json, "RegistryError", None, &error.to_string(), 2),
+    };
+    let reuse = rhobuilder_registry::reuse::check(&design, &registry);
+    if !validation.ok || !reuse.ok {
+        let envelope = json!({
+            "schema": rhobuilder_core::schema("scaffold-refusal"),
+            "ok": false,
+            "verdict": &reuse.verdict,
+            "validation": &validation,
+            "reuse": &reuse,
+        });
+        if json {
+            if let Err(error) = emit_json(&envelope) {
+                eprintln!("rhobuilder: cannot encode JSON: {error}");
+                return ExitCode::from(1);
+            }
+        } else {
+            println!("scaffold refused: fix the design first");
+            for conflict in &reuse.conflicts {
+                println!(
+                    "  conflict {} vs {}: {}",
+                    conflict.component, conflict.primitive, conflict.detail
+                );
+            }
+        }
+        return ExitCode::from(2);
+    }
+    let Some(template) = rhobuilder_core::scaffold::Template::parse(template_name) else {
+        return fail(json, "Usage", None, "template must be full or headless", 2);
+    };
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(error) => return fail(json, "Io", None, &error.to_string(), 2),
+    };
+    let normalized = match rhobuilder_core::scaffold::normalize_target(target) {
+        Ok(path) => path,
+        Err(error) => return fail(json, "OutsideWorkspace", None, &error.to_string(), 2),
+    };
+    let target_abs = if normalized.is_absolute() {
+        normalized
+    } else {
+        cwd.join(normalized)
+    };
+    if !target_abs.starts_with(&cwd) && !force {
+        return fail(
+            json,
+            "OutsideWorkspace",
+            Some("target"),
+            "target is outside the working directory; pass --force to allow it",
+            2,
+        );
+    }
+    let template_root = if templates.is_absolute() {
+        templates.to_path_buf()
+    } else {
+        cwd.join(templates)
+    };
+    let reuse_value = match serde_json::to_value(&reuse) {
+        Ok(value) => value,
+        Err(error) => return fail(json, "Json", None, &error.to_string(), 2),
+    };
+
+    if apply_now {
+        let written = match rhobuilder_core::scaffold::apply(
+            &template_root,
+            &design,
+            template,
+            &reuse_value,
+            &target_abs,
+            force,
+        ) {
+            Ok(written) => written,
+            Err(error) => {
+                let code = match &error {
+                    rhobuilder_core::scaffold::ScaffoldError::TargetNotEmpty(_) => 1,
+                    _ => 2,
+                };
+                return fail(json, "ScaffoldError", None, &error.to_string(), code);
+            }
+        };
+        if json {
+            return print_json(json!({
+                "schema": rhobuilder_core::schema("scaffold"),
+                "ok": true,
+                "target": target_abs.display().to_string(),
+                "template": template.name(),
+                "app": design.app.slug,
+                "written": written,
+            }));
+        }
+        println!(
+            "scaffold: {} files written to {} ({})",
+            written,
+            target_abs.display(),
+            template.name()
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    let plan = match rhobuilder_core::scaffold::plan(
+        &template_root,
+        &design,
+        template,
+        &reuse_value,
+        &target_abs,
+    ) {
+        Ok(plan) => plan,
+        Err(error) => return fail(json, "ScaffoldError", None, &error.to_string(), 2),
+    };
+    if json {
+        return print_json(json!({
+            "schema": rhobuilder_core::schema("scaffold-plan"),
+            "ok": true,
+            "plan": plan,
+        }));
+    }
+    println!(
+        "scaffold plan: {} files for {} at {} ({})",
+        plan.files.len(),
+        plan.app_slug,
+        plan.target,
+        plan.template
+    );
+    for path in plan.files.iter().take(40) {
+        println!("  {path}");
+    }
+    if plan.files.len() > 40 {
+        println!("  ... {} more", plan.files.len() - 40);
+    }
+    ExitCode::SUCCESS
+}
+
+fn design_check(json: bool, registry_path: &Path, path: &Path) -> ExitCode {
+    let design = match rhobuilder_core::design::load(path) {
+        Ok(design) => design,
+        Err(error) => return fail(json, "DesignError", None, &error.to_string(), 2),
+    };
+    let validation = design.validate();
+    let registry = match rhobuilder_registry::Registry::load(registry_path) {
+        Ok(registry) => registry,
+        Err(error) => return fail(json, "RegistryError", None, &error.to_string(), 2),
+    };
+    let reuse = rhobuilder_registry::reuse::check(&design, &registry);
+    let ok = validation.ok && reuse.ok;
+    let envelope = json!({
+        "schema": rhobuilder_core::schema("design-check"),
+        "ok": ok,
+        "verdict": &reuse.verdict,
+        "app": {"name": &design.app.name, "slug": &design.app.slug},
+        "validation": &validation,
+        "reuse": &reuse,
+    });
+    if json {
+        if let Err(error) = emit_json(&envelope) {
+            eprintln!("rhobuilder: cannot encode JSON: {error}");
+            return ExitCode::from(1);
+        }
+    } else {
+        println!(
+            "design {}: {}",
+            design.app.slug,
+            if ok { "pass" } else { "refuse" }
+        );
+        for check in &validation.checks {
+            if check.status != "ok" {
+                println!("  {} {}: {}", check.status, check.id, check.detail);
+            }
+        }
+        for check in &reuse.checks {
+            if check.status != "ok" {
+                println!("  {} {}: {}", check.status, check.id, check.detail);
+            }
+        }
+        for conflict in &reuse.conflicts {
+            println!(
+                "  conflict {} vs {}: {}",
+                conflict.component, conflict.primitive, conflict.detail
+            );
+        }
+    }
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
     }
 }
 
@@ -509,6 +869,26 @@ mod tests {
         .expect("parse");
         assert!(cli.json);
         assert_eq!(cli.registry, PathBuf::from("registry"));
+    }
+
+    #[test]
+    fn cli_parses_scaffold_plan() {
+        let cli = Cli::try_parse_from([
+            "rhobuilder",
+            "--json",
+            "new",
+            "/tmp/demo",
+            "--design",
+            "fixtures/designs/booking.json",
+            "--template",
+            "headless",
+            "--plan",
+            "--force",
+        ])
+        .expect("parse");
+        assert!(cli.json);
+        assert_eq!(cli.registry, PathBuf::from("registry"));
+        assert_eq!(cli.templates, PathBuf::from("templates/dapp"));
     }
 
     #[test]

@@ -1,0 +1,21 @@
+// __app_name__ __resource__ cell.
+// Scaffold: one linear cell, take and repost once, explicit reply shapes.
+new rs(`rho:registry:insertArbitrary`), deployId(`rho:rchain:deployId`) in {
+  new state, factory, ret in {
+    state!([]) |
+    contract factory(@"get", ret) = {
+      for (@value <- state) {
+        state!(value) | ret!(value)
+      }
+    } |
+    contract factory(@"set", @value, ret) = {
+      for (_ <- state) {
+        state!(value) | ret!(true)
+      }
+    } |
+    rs!(bundle+{*factory}, *ret) |
+    for (@uri <- ret) {
+      deployId!([uri])
+    }
+  }
+}

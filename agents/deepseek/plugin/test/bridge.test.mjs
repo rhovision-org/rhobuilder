@@ -56,6 +56,21 @@ test('registry get names the action and id', () => {
   ])
 })
 
+test('design validate names the action and path', () => {
+  const invocation = buildInvocation(
+    'design',
+    { action: 'validate', path: 'design.json' },
+    CONFIG,
+  )
+  assert.deepEqual(invocation.args, [
+    '--json',
+    'design',
+    'validate',
+    '--path',
+    'design.json',
+  ])
+})
+
 test('registry drift carries the source root and strict flag', () => {
   const invocation = buildInvocation(
     'registry',
