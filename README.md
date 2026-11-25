@@ -18,13 +18,13 @@ gate.
 
 | Area | Status |
 |---|---|
-| Repo + DSH plugin/skills/launcher skeleton | P0 — scaffolded |
+| Repo + DSH plugin/skills/launcher | P0/P3 — implemented; DSH 0.2.2-rc.5 `--dump-config` validates web and headless overlays |
 | Registry + network identity probe | P1 — profile/pins/catalog committed; pinned-commit drift clean |
 | Design gate + scaffolder + vendored gates | P2 — design gate and full/headless scaffold implemented; canonical gate vendoring pending |
 | Lean `RhoApp` + per-dApp models | P4 — shared RhoApp, vendoring and hash check implemented; per-app model is scaffold |
 | Devnet end-to-end | P5 — not implemented |
 | Public-testnet baseline | P6 — not implemented |
-| Optional MCP server | P7 — not implemented |
+| Optional MCP server | P7 — read-only/plan server implemented with both protocol lanes |
 
 ## What it targets
 

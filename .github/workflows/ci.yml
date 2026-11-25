@@ -31,6 +31,8 @@ jobs:
       - run: node --check agents/deepseek/plugin/index.js
       - run: node --check agents/deepseek/plugin/bridge.js
       - run: node --test agents/deepseek/plugin/test/*.test.mjs
+      - run: node --check mcp/server.mjs
+      - run: node --test mcp/test/*.test.mjs
 
   launcher:
     runs-on: ubuntu-latest

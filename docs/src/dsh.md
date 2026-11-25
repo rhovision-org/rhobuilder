@@ -24,7 +24,7 @@ overlay, then runs DSH.
 
 `agents/deepseek/plugin/index.js` registers six tools over `rhobuilder --json`:
 
-- `rhobuilder_registry` — list/get/graph/verify primitives.
+- `rhobuilder_registry` — list/get/graph/verify/drift primitives.
 - `rhobuilder_design` — validate or report a design.
 - `rhobuilder_scaffold` — plan (default) or apply a skeleton.
 - `rhobuilder_check` — static/formal/full gates.

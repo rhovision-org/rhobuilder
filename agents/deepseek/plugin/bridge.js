@@ -84,6 +84,13 @@ export function buildInvocation(tool, args = {}, cfg = {}) {
       argv = [...base, 'deploy', 'plan', '--project', project, '--network', network]
       break
     }
+    case 'formal': {
+      const action = requireEnum(args, 'action', ['check', 'sync'])
+      const project = requireString(args, 'project')
+      argv = [...base, 'formal', action, '--project', project]
+      if (action === 'sync') pushFlag(argv, '--source', args.source)
+      break
+    }
     case 'chain': {
       const action = requireEnum(args, 'action', [
         'probe',

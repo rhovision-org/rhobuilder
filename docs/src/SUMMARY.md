@@ -6,4 +6,5 @@
 - [Design and the reuse gate](design.md)
 - [Scaffolding](scaffold.md)
 - [Lean and RhoApp](formal.md)
+- [MCP server](mcp.md)
 - [Registry and reuse](registry.md)

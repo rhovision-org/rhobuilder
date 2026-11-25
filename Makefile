@@ -7,7 +7,7 @@ DESIGN ?= fixtures/designs/booking.json
 
 .PHONY: help check rust-check fmt clippy test plugin-test launcher-test \
 	docs docs-check dsh-check registry-check registry-drift chain-probe \
-	design-check design-refuse scaffold-e2e formal-check clean
+	design-check design-refuse scaffold-e2e mcp-test formal-check clean
 
 help:
 	@echo "rhobuilder targets:"
@@ -25,7 +25,7 @@ help:
 	@echo "  make scaffold-e2e   generate the booking fixture and run its gates"
 	@echo "  make formal-check   P4: Lean RhoApp and per-dApp obligations"
 
-check: rust-check plugin-test launcher-test registry-check design-check docs-check
+check: rust-check plugin-test mcp-test launcher-test registry-check design-check docs-check
 
 rust-check: fmt clippy test
 
@@ -40,6 +40,9 @@ test:
 
 plugin-test:
 	$(NODE) --test agents/deepseek/plugin/test/*.test.mjs
+
+mcp-test:
+	$(NODE) --test mcp/test/*.test.mjs
 
 launcher-test:
 	$(PY) -m unittest discover -s tools/tests -v
