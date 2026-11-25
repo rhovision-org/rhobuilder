@@ -65,10 +65,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: "0.4.40"
       - run: make scaffold-e2e
+      - run: |
+          cargo run -q -p rhobuilder-cli -- new /tmp/rhobuilder-full \
+            --design fixtures/designs/booking.json --template full --apply --force
+          make -C /tmp/rhobuilder-full client-check
 
   docs:
     runs-on: ubuntu-latest

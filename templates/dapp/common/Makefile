@@ -67,7 +67,8 @@ ci: check unit-all
 
 client-check:
 	@if [ -d web ]; then \
-		npm --prefix web ci && npm --prefix web test -- --run && npm --prefix web run build; \
+		npm --prefix web install --no-audit --no-fund && \
+		npm --prefix web test && npm --prefix web run build; \
 	else \
 		echo "client-check: headless template (no web/)"; \
 	fi
